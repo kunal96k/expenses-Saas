@@ -23,7 +23,6 @@ const Header = ({ activePage, toggleSidebar }) => {
     'role-management': 'Role Management',
     'company-master': 'Company Master',
     'bank-master': 'Bank Master',
-    'account-master': 'Account Master',
     'payment-mode-master': 'Payment Mode Master',
     'category-master': 'Purpose / Category Master',
     'general-settings': 'General Settings',
@@ -82,7 +81,7 @@ const Header = ({ activePage, toggleSidebar }) => {
             onClick={() => setIsDropdownShow(!isDropdownShow)}
           >
             <img src="https://ui-avatars.com/api/?name=kunal+patil&background=4f46e5&color=fff" alt="User" className="user-avatar" />
-            <div className="user-details">
+            <div className="user-details d-none d-sm-block">
               <div className="user-name">kunal patil</div>
               <div className="user-role">Super Admin</div>
             </div>

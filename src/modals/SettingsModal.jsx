@@ -1,5 +1,4 @@
 import React from 'react';
-import SettingsPage from '../pages/SettingsPage';
 
 const SettingsModal = () => {
   return (
@@ -11,7 +10,9 @@ const SettingsModal = () => {
             <button type="button" className="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div className="modal-body">
-            <SettingsPage />
+            <div className="text-muted small">
+              This modal is deprecated. Use the Settings module in the left sidebar (General Settings / Preferences).
+            </div>
           </div>
         </div>
       </div>

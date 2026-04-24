@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
 
-const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarShown }) => {
+const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarShown, userRole }) => {
   const [expandedMenus, setExpandedMenus] = useState({
     transactions: true,
     accounts: false,
@@ -51,23 +51,13 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
       ]
     },
     { 
-      id: 'users', 
-      label: 'Users & Roles', 
-      icon: 'bi-people',
-      submodules: [
-        { id: 'all-users', label: 'All Users', icon: 'bi-person-lines-fill' },
-        { id: 'add-user', label: 'Add User', icon: 'bi-person-plus' },
-        { id: 'role-management', label: 'Role Management', icon: 'bi-shield-lock' }
-      ]
-    },
-    { 
       id: 'masters', 
       label: 'Masters', 
       icon: 'bi-database',
       submodules: [
+        { id: 'employee-master', label: 'Employee Master', icon: 'bi-person-badge' },
         { id: 'company-master', label: 'Company Master', icon: 'bi-building-gear' },
         { id: 'bank-master', label: 'Bank Master', icon: 'bi-bank2' },
-        { id: 'account-master', label: 'Account Master', icon: 'bi-database-check' },
         { id: 'payment-mode-master', label: 'Payment Mode Master', icon: 'bi-wallet2' },
         { id: 'category-master', label: 'Purpose / Category Master', icon: 'bi-tags' }
       ]
@@ -122,7 +112,14 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
 
       <ul className="sidebar-menu">
         <li className="menu-header">Main Menu</li>
-        {menuStructure.map((item) => (
+        {menuStructure
+          .filter(item => {
+            if (userRole === 'Viewer') {
+              return !['users', 'masters', 'settings'].includes(item.id);
+            }
+            return true;
+          })
+          .map((item) => (
           <li key={item.id}>
             <a 
               href="#" 

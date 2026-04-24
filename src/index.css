@@ -418,14 +418,23 @@ body {
 }
 
 /* === MAIN LAYOUT === */
+.app-container {
+    display: flex;
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
 .main-wrapper {
     margin-left: var(--sidebar-width);
     transition: all 0.3s ease;
     min-height: 100vh;
+    min-width: 0; /* Critical for flex child overflow */
+    overflow-x: hidden;
 }
 
 .main-wrapper.expanded {
     margin-left: var(--sidebar-collapsed-width);
+    min-width: 0;
 }
 
 /* === NAVBAR === */
@@ -548,6 +557,7 @@ body {
 
 .user-details {
     text-align: left;
+    white-space: nowrap;
 }
 
 .user-details .user-name {
@@ -658,6 +668,8 @@ body {
     padding: 24px;
     background: var(--bg-body);
     min-height: calc(100vh - var(--header-height));
+    overflow-x: hidden;
+    min-width: 0;
 }
 
 .view-section {
@@ -698,7 +710,6 @@ body {
 .stat-card:hover {
     box-shadow: var(--shadow-lg);
     border-color: var(--primary-light);
-    transform: translateY(-2px);
 }
 
 .stat-icon {
