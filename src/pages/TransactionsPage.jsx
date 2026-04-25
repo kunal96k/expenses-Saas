@@ -21,10 +21,36 @@ const TransactionsPage = ({ activePage, userRole }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
 
+    // Multi-Select Dropdown State
+    const [isAccountsOpen, setIsAccountsOpen] = useState(false);
+    const accountOptions = ['HDFC Bank', 'ICICI Bank', 'SBI Bank', 'Main Cash', 'Petty Cash'];
+
+    const toggleAccount = (acc) => {
+        setFilters(prev => {
+            const current = [...prev.accounts];
+            if (current.includes(acc)) {
+                return { ...prev, accounts: current.filter(a => a !== acc) };
+            } else {
+                return { ...prev, accounts: [...current, acc] };
+            }
+        });
+    };
+
     // Reset pagination when filters change
     useEffect(() => {
         setCurrentPage(1);
     }, [filters, activeTab]);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('.custom-multi-select')) {
+                setIsAccountsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Mock Data
     const initialTransactions = [
@@ -91,8 +117,9 @@ const TransactionsPage = ({ activePage, userRole }) => {
             
             const matchesTypeFilter = filters.type === 'all' || t.type === filters.type;
             const matchesCompany = filters.company === 'all' || t.from.company === filters.company || t.to.company === filters.company;
+            const matchesAccounts = filters.accounts.length === 0 || filters.accounts.includes(t.from.account) || filters.accounts.includes(t.to.account);
             
-            return typeMatch && matchesSearch && matchesTypeFilter && matchesCompany;
+            return typeMatch && matchesSearch && matchesTypeFilter && matchesCompany && matchesAccounts;
         });
     }, [transactions, activeTab, filters]);
 
@@ -171,13 +198,37 @@ const TransactionsPage = ({ activePage, userRole }) => {
                     </div>
                     <div className="filter-item">
                         <label className="filter-label">Accounts</label>
-                        <select className="filter-input" multiple size="1" style={{ height: '42px' }}>
-                            <option>HDFC Bank</option>
-                            <option>ICICI Bank</option>
-                            <option>SBI Bank</option>
-                            <option>Main Cash</option>
-                            <option>Petty Cash</option>
-                        </select>
+                        <div className="custom-multi-select position-relative">
+                            <div 
+                                className="filter-input d-flex justify-content-between align-items-center" 
+                                style={{ height: '42px', cursor: 'pointer' }}
+                                onClick={() => setIsAccountsOpen(!isAccountsOpen)}
+                            >
+                                <span className={filters.accounts.length === 0 ? "text-muted" : "text-dark"}>
+                                    {filters.accounts.length === 0 ? 'All Accounts' : `${filters.accounts.length} Selected`}
+                                </span>
+                                <i className={`bi bi-chevron-${isAccountsOpen ? 'up' : 'down'} text-muted`}></i>
+                            </div>
+                            
+                            {isAccountsOpen && (
+                                <div className="position-absolute w-100 bg-white border border-light rounded-3 shadow-lg mt-1 z-3 dropdown-container" style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                                    <div className="dropdown-option border-bottom" onClick={() => setFilters({...filters, accounts: []})}>
+                                        <div className="form-check d-flex align-items-center m-0 w-100 custom-check">
+                                            <input className="form-check-input me-2 shadow-none border-secondary" type="checkbox" checked={filters.accounts.length === 0} readOnly style={{ cursor: 'pointer' }} />
+                                            <label className="form-check-label w-100 text-dark" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>All Accounts</label>
+                                        </div>
+                                    </div>
+                                    {accountOptions.map(acc => (
+                                        <div key={acc} className="dropdown-option" onClick={() => toggleAccount(acc)}>
+                                            <div className="form-check d-flex align-items-center m-0 w-100 custom-check">
+                                                <input className="form-check-input me-2 shadow-none border-secondary" type="checkbox" checked={filters.accounts.includes(acc)} readOnly style={{ cursor: 'pointer' }} />
+                                                <label className="form-check-label w-100 text-dark" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>{acc}</label>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="filter-item">
                         <label className="filter-label">Type</label>

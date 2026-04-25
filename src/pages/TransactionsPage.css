@@ -112,6 +112,28 @@
     font-family: inherit;
 }
 
+.custom-multi-select .dropdown-container {
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.custom-multi-select .dropdown-option {
+    padding: 10px 14px;
+    background: #fff;
+    transition: background 0.15s;
+    cursor: pointer;
+}
+
+.custom-multi-select .dropdown-option:hover {
+    background: #f1f5f9;
+}
+
+.custom-multi-select .custom-check .form-check-input {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: 0;
+}
+
 .filter-input:focus {
     background: #fff;
     border-color: #5c67f2;
