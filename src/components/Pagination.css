@@ -1,98 +1,211 @@
-/* Global Pagination Component Styles */
+/* ============================================================
+   GLOBAL PAGINATION COMPONENT — SaaS Design
+   ============================================================ */
+
 .pagination-wrapper {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 1.25rem 1.5rem;
-    background: #fff;
+    justify-content: space-between;
+    padding: 12px 20px;
     border-top: 1px solid #f1f5f9;
+    background: #fff;
+    gap: 12px;
     flex-wrap: wrap;
-    gap: 1rem;
-    border-bottom-left-radius: 1rem;
-    border-bottom-right-radius: 1rem;
+    user-select: none;
 }
 
+/* ── Left: show N entries ── */
 .pagination-left {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 8px;
+}
+
+.pag-label {
+    font-size: 0.78rem;
     color: #64748b;
-    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
 }
 
 .entries-select {
-    width: auto;
-    min-width: 70px;
-    padding: 0.35rem 0.5rem;
-    border-radius: 0.5rem;
+    padding: 5px 8px;
+    border-radius: 7px;
     border: 1px solid #e2e8f0;
-    color: #1e293b;
-    font-weight: 600;
+    background: #f8fafc;
+    font-size: 0.78rem;
+    color: #334155;
     cursor: pointer;
+    outline: none;
+    font-family: inherit;
+    font-weight: 500;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    /* remove default select arrow styling in Bootstrap */
+    width: auto;
+    appearance: auto;
 }
 
+.entries-select:focus {
+    border-color: #5c67f2;
+    box-shadow: 0 0 0 3px rgba(92, 103, 242, 0.08);
+}
+
+/* ── Right: info + controls ── */
 .pagination-right {
     display: flex;
     align-items: center;
+    gap: 10px;
     flex-wrap: wrap;
-    gap: 1rem;
+    justify-content: flex-end;
 }
 
 .pagination-info {
-    font-size: 0.85rem;
-    color: #64748b;
+    font-size: 0.775rem;
+    color: #94a3b8;
+    font-weight: 400;
+    white-space: nowrap;
 }
 
+.pagination-info strong {
+    color: #475569;
+    font-weight: 700;
+}
+
+/* ── Controls group ── */
 .pagination-controls-group {
     display: flex;
-    background: #f8fafc;
-    padding: 0.25rem;
-    border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
-}
-
-.page-btn-nav, .page-btn-num {
-    height: 34px;
-    display: flex;
     align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    color: #64748b;
-    font-size: 0.85rem;
+    gap: 3px;
+}
+
+/* ── Prev / Next nav buttons ── */
+.page-btn-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 10px;
+    height: 32px;
+    font-size: 0.775rem;
     font-weight: 600;
-    padding: 0 0.85rem;
-    border-radius: 0.5rem;
-    transition: all 0.2s;
-    cursor: pointer;
-}
-
-.page-btn-nav:hover:not(:disabled), .page-btn-num:hover:not(.active) {
+    border: 1px solid #e2e8f0;
     background: #fff;
-    color: #5c67f2;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-radius: 7px;
+    color: #475569;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+    flex-shrink: 0;
 }
 
-.page-btn-num.active {
-    background: #007bff; /* Standard ERP Primary Blue */
+.page-btn-nav i {
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.page-btn-nav:hover:not(:disabled) {
+    background: #5c67f2;
+    border-color: #5c67f2;
     color: #fff;
-    box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(92, 103, 242, 0.2);
 }
 
 .page-btn-nav:disabled {
-    opacity: 0.4;
+    opacity: 0.38;
     cursor: not-allowed;
+    pointer-events: none;
 }
 
-@media (max-width: 768px) {
+/* Edge buttons (first / last) are icon-only — square */
+.page-btn-edge {
+    padding: 0;
+    width: 32px;
+    justify-content: center;
+}
+
+/* ── Numbered page buttons ── */
+.page-btn-num {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 7px;
+    color: #475569;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.page-btn-num:hover:not(.active) {
+    background: #eef0fd;
+    border-color: #c7caf9;
+    color: #5c67f2;
+}
+
+.page-btn-num.active {
+    background: #5c67f2;
+    border-color: #5c67f2;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(92, 103, 242, 0.28);
+    cursor: default;
+}
+
+/* ── Ellipsis ── */
+.page-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 32px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-weight: 700;
+    pointer-events: none;
+}
+
+/* ── Mobile (≤ 640px) ── */
+@media (max-width: 640px) {
     .pagination-wrapper {
         flex-direction: column;
-        align-items: center;
-        text-align: center;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px 14px;
     }
-    
+
     .pagination-right {
-        flex-direction: column;
-        gap: 0.75rem;
+        width: 100%;
+        justify-content: space-between;
     }
+
+    /* Hide "Prev" / "Next" text labels on small screens */
+    .btn-nav-label { display: none; }
+
+    /* Tighten edge buttons on mobile */
+    .page-btn-nav {
+        padding: 0;
+        width: 32px;
+        justify-content: center;
+    }
+
+    .pagination-info { display: none; }
+}
+
+/* ── Tiny phones (≤ 380px) ── */
+@media (max-width: 380px) {
+    .page-btn-num,
+    .page-btn-nav,
+    .page-btn-edge {
+        width: 28px;
+        height: 28px;
+        font-size: 0.72rem;
+    }
+
+    .pagination-controls-group { gap: 2px; }
 }

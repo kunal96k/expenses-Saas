@@ -28,8 +28,12 @@ ChartJS.register(
   Filler
 );
 
-const DashboardView = () => {
-  const [activeRow, setActiveRow] = useState(null);
+const PAGE_SIZES = [25, 50, 100, 500, 1000];
+
+const DashboardView = ({ setActivePage }) => {
+  const [activeRow, setActiveRow]       = useState(null);
+  const [txPageSize, setTxPageSize]     = useState(25);
+  const [txPage, setTxPage]             = useState(1);
 
   // Mock Data
   const companies = [
@@ -164,17 +168,46 @@ const DashboardView = () => {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="d-flex gap-3 mb-4">
-        <button className="btn btn-primary-custom" style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}>
-          <i className="bi bi-plus-lg"></i> Add Income
-        </button>
-        <button className="btn btn-primary-custom" style={{ backgroundColor: 'var(--danger)', borderColor: 'var(--danger)' }}>
-          <i className="bi bi-dash-lg"></i> Add Expense
-        </button>
-        <button className="btn btn-primary-custom">
-          <i className="bi bi-arrow-left-right"></i> Transfer Money
-        </button>
+      {/* ── Quick Actions ── */}
+      <div className="dash-quick-actions">
+        <div className="dash-qa-left">
+          <span className="dash-qa-label">Quick Actions</span>
+          <button
+            className="dash-qa-btn qa-income"
+            onClick={() => setActivePage && setActivePage('add-income')}
+            title="Add Income transaction"
+          >
+            <span className="qa-icon"><i className="bi bi-arrow-down-left-circle-fill"></i></span>
+            <span className="qa-text"><strong>Add Income</strong><small>Record received funds</small></span>
+          </button>
+          <button
+            className="dash-qa-btn qa-expense"
+            onClick={() => setActivePage && setActivePage('add-expense')}
+            title="Add Expense transaction"
+          >
+            <span className="qa-icon"><i className="bi bi-arrow-up-right-circle-fill"></i></span>
+            <span className="qa-text"><strong>Add Expense</strong><small>Record paid funds</small></span>
+          </button>
+          <button
+            className="dash-qa-btn qa-transfer"
+            onClick={() => setActivePage && setActivePage('transfer-money')}
+            title="Transfer between accounts"
+          >
+            <span className="qa-icon"><i className="bi bi-arrow-left-right"></i></span>
+            <span className="qa-text"><strong>Transfer</strong><small>Move between accounts</small></span>
+          </button>
+        </div>
+        <div className="dash-qa-right">
+          <a href="#" className="dash-shortcut" onClick={e => { e.preventDefault(); setActivePage && setActivePage('all-accounts'); }}>
+            <i className="bi bi-bank"></i> Accounts
+          </a>
+          <a href="#" className="dash-shortcut" onClick={e => { e.preventDefault(); setActivePage && setActivePage('company-report'); }}>
+            <i className="bi bi-file-bar-graph"></i> Reports
+          </a>
+          <a href="#" className="dash-shortcut" onClick={e => { e.preventDefault(); setActivePage && setActivePage('company-master'); }}>
+            <i className="bi bi-buildings"></i> Masters
+          </a>
+        </div>
       </div>
 
       <div className="row g-3 mb-4">
@@ -202,8 +235,8 @@ const DashboardView = () => {
                         onClick={() => setActiveRow(`company-${company.id}`)}
                         style={{ cursor: 'pointer' }}
                       >
-                        <td className="fw-medium">{company.name}</td>
-                        <td className="text-end fw-bold text-primary">{company.balance}</td>
+                        <td data-label="Company Name" className="fw-medium">{company.name}</td>
+                        <td data-label="Balance" className="text-end fw-bold text-primary">{company.balance}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -238,14 +271,14 @@ const DashboardView = () => {
                         onClick={() => setActiveRow(`account-${account.id}`)}
                         style={{ cursor: 'pointer' }}
                       >
-                        <td>
+                        <td data-label="Account">
                           <div className="d-flex align-items-center gap-2">
                             <i className={`bi ${account.type === 'Bank' ? 'bi-bank text-primary' : 'bi-wallet text-warning'}`}></i>
                             {account.name}
                           </div>
                         </td>
-                        <td className="small text-muted">{account.company}</td>
-                        <td className="text-end fw-bold">{account.balance}</td>
+                        <td data-label="Company" className="small text-muted">{account.company}</td>
+                        <td data-label="Balance" className="text-end fw-bold">{account.balance}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -278,9 +311,27 @@ const DashboardView = () => {
 
       {/* F. Recent Transactions */}
       <div className="card table-card mb-4">
-        <div className="card-header-custom">
-          <h5>Recent Transactions</h5>
-          <button className="btn btn-primary-custom btn-sm">Full History</button>
+        <div className="card-header-custom" style={{ flexWrap: 'wrap', gap: '12px' }}>
+          <h5 style={{ margin: 0 }}>Recent Transactions</h5>
+          <div className="dash-pagesize-bar">
+            <span className="dash-pagesize-label">Show</span>
+            {PAGE_SIZES.map(size => (
+              <button
+                key={size}
+                className={`dash-pagesize-btn${txPageSize === size ? ' active' : ''}`}
+                onClick={() => { setTxPageSize(size); setTxPage(1); }}
+              >
+                {size}
+              </button>
+            ))}
+            <span className="dash-pagesize-label">entries</span>
+          </div>
+          <button
+            className="btn btn-primary-custom btn-sm"
+            onClick={() => setActivePage && setActivePage('all-transactions')}
+          >
+            <i className="bi bi-list-ul me-1"></i>Full History
+          </button>
         </div>
         <div className="card-body p-0">
           <div className="table-responsive">
@@ -303,16 +354,16 @@ const DashboardView = () => {
                     onClick={() => setActiveRow(`tx-${t.id}`)}
                     style={{ cursor: 'pointer' }}
                   >
-                    <td>{t.date}</td>
-                    <td>
+                    <td data-label="Date">{t.date}</td>
+                    <td data-label="Type">
                       <span className={`status-badge status-${t.status}`}>
                         {t.type}
                       </span>
                     </td>
-                    <td className="small">{t.flow}</td>
-                    <td>{t.company}</td>
-                    <td>{t.account}</td>
-                    <td className={`text-end fw-bold ${t.status === 'credit' ? 'text-success' : t.status === 'debit' ? 'text-danger' : 'text-primary'}`}>
+                    <td data-label="Description" className="small">{t.flow}</td>
+                    <td data-label="Company">{t.company}</td>
+                    <td data-label="Account">{t.account}</td>
+                    <td data-label="Amount" className={`text-end fw-bold ${t.status === 'credit' ? 'text-success' : t.status === 'debit' ? 'text-danger' : 'text-primary'}`}>
                       {t.status === 'debit' ? '-' : t.status === 'credit' ? '+' : ''}{t.amount}
                     </td>
                   </tr>

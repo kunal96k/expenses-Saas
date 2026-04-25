@@ -14,10 +14,10 @@ const UsersPage = ({ userRole }) => {
 
     // Mock Data (Simplified Roles)
     const initialUsers = [
-        { id: 1, name: 'Kunal Verma', email: 'kunal@example.com', role: 'Super Admin', companies: ['Acme Corp', 'Global Tech'], status: 'Active', lastLogin: '2024-04-24 10:15 AM' },
-        { id: 2, name: 'Priya Patil', email: 'priya@tech.com', role: 'Super Admin', companies: ['Global Tech'], status: 'Active', lastLogin: '2024-04-23 04:45 PM' },
-        { id: 3, name: 'Amit Patel', email: 'amit@partner.com', role: 'Viewer', companies: ['Acme Corp'], status: 'Inactive', lastLogin: '2024-04-15 09:00 AM' },
-        { id: 4, name: 'Sneha Reddy', email: 'sneha@viewer.com', role: 'Viewer', companies: ['Acme Corp', 'Global Tech'], status: 'Active', lastLogin: '2024-04-24 11:30 AM' },
+        { id: 1, name: 'Kunal Patil', email: 'kunal@tts.com', role: 'Super Admin', companies: ['Acme Corp', 'Global Tech'], status: 'Active', lastLogin: '2024-04-24 10:15 AM' },
+        { id: 2, name: 'Nikita Patil', email: 'nikita@tech.com', role: 'Super Admin', companies: ['Global Tech'], status: 'Active', lastLogin: '2024-04-23 04:45 PM' },
+        { id: 3, name: 'Ankush Pandit', email: 'ankush@partner.com', role: 'Viewer', companies: ['Acme Corp'], status: 'Inactive', lastLogin: '2024-04-15 09:00 AM' },
+        { id: 4, name: 'Sneha Desai', email: 'sneha@viewer.com', role: 'Viewer', companies: ['Acme Corp', 'Global Tech'], status: 'Active', lastLogin: '2024-04-24 11:30 AM' },
     ];
 
     const [users, setUsers] = useState(initialUsers);
@@ -150,7 +150,7 @@ const UsersPage = ({ userRole }) => {
                             <tbody>
                                 {paginatedUsers.map(user => (
                                     <tr key={user.id} className={user.status === 'Inactive' ? 'row-inactive' : ''}>
-                                        <td>
+                                        <td data-label="User Info">
                                             <div className="user-info-cell">
                                                 <div className={`user-avatar-small ${user.role === 'Viewer' ? 'bg-secondary' : ''}`}>
                                                     {user.name.charAt(0)}
@@ -161,20 +161,20 @@ const UsersPage = ({ userRole }) => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
+                                        <td data-label="Role">
                                             <span className={`role-badge ${user.role.toLowerCase().replace(' ', '-')}`}>
                                                 {user.role}
                                             </span>
                                             {user.role === 'Viewer' && <div className="mt-1 small text-muted">View-only access</div>}
                                         </td>
-                                        <td>
+                                        <td data-label="Accessible Companies">
                                             <div className="company-tags">
                                                 {user.companies.map(c => (
                                                     <span key={c} className="company-pill">{c}</span>
                                                 ))}
                                             </div>
                                         </td>
-                                        <td>
+                                        <td data-label="Status">
                                             <div className="form-check form-switch">
                                                 <input
                                                     className="form-check-input"
@@ -186,9 +186,9 @@ const UsersPage = ({ userRole }) => {
                                                 <span className={`status-text ${user.status.toLowerCase()}`}>{user.status}</span>
                                             </div>
                                         </td>
-                                        <td className="text-muted small">{user.lastLogin}</td>
+                                        <td data-label="Last Login" className="text-muted small">{user.lastLogin}</td>
                                         {userRole === 'Super Admin' && (
-                                            <td>
+                                            <td data-label="Actions">
                                                 <div className="action-buttons">
                                                     <button className="btn-icon" onClick={() => openUserModal(user)} title="Edit">
                                                         <i className="bi bi-pencil"></i>
@@ -206,7 +206,7 @@ const UsersPage = ({ userRole }) => {
                     </div>
 
                     {/* Global Pagination Component */}
-                    <Pagination 
+                    <Pagination
                         totalItems={filteredUsers.length}
                         itemsPerPage={itemsPerPage}
                         currentPage={currentPage}

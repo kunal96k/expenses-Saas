@@ -1,17 +1,15 @@
 .reports-container {
     animation: fadeIn 0.3s ease-out;
     position: relative;
-    padding-top: 2rem;
-    /* Increased top padding */
+    padding: 0;
     max-width: 100%;
-    overflow-x: hidden;
-    /* Strict horizontal control */
 }
 
 .audit-indicator {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
+    position: relative;
+    float: right;
+    margin-bottom: 15px;
+    margin-top: 5px;
     font-size: 0.7rem;
     color: #10b981;
     background: #ecfdf5;
@@ -30,9 +28,7 @@
 
 @media (max-width: 992px) {
     .audit-indicator {
-        position: relative;
-        top: 0;
-        right: 0;
+        float: none;
         margin-bottom: 1rem;
         display: inline-flex;
     }
@@ -58,6 +54,7 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     margin-bottom: 2rem;
     border: 1px solid rgba(0, 0, 0, 0.05);
+    clear: both;
 }
 
 .report-filter-grid {

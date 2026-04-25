@@ -141,7 +141,7 @@ const TransactionsPage = ({ activePage, userRole }) => {
                 <div className="filter-grid">
                     <div className="filter-item date-range">
                         <label className="filter-label">Date Range</label>
-                        <div className="d-flex gap-2">
+                        <div className="d-flex flex-column flex-sm-row gap-2">
                             <input 
                                 type="date" 
                                 className="filter-input" 
@@ -236,33 +236,33 @@ const TransactionsPage = ({ activePage, userRole }) => {
                     <tbody>
                         {paginatedTransactions.map(txn => (
                             <tr key={txn.id} className="transaction-row">
-                                <td>{txn.date}</td>
-                                <td>
+                                <td data-label="Date">{txn.date}</td>
+                                <td data-label="Type">
                                     <span className={`badge-type badge-${txn.type === 'Received' ? 'income' : txn.type === 'Paid' ? 'expense' : 'transfer'}`}>
                                         {txn.type}
                                     </span>
                                 </td>
-                                <td>
+                                <td data-label="From Source">
                                     <div className="account-info">
                                         <span className={`company-name ${txn.from.company === 'External' ? 'text-external' : ''}`}>{txn.from.company}</span>
                                         <span className="account-name">{txn.from.account}</span>
                                     </div>
                                 </td>
-                                <td className="position-relative">
+                                <td data-label="To Destination" className="position-relative">
                                     <i className="bi bi-arrow-right text-light position-absolute start-0 top-50 translate-middle-y" style={{ left: '-12px', opacity: 0.5, fontSize: '0.8rem' }}></i>
                                     <div className="account-info">
                                         <span className={`company-name ${txn.to.company === 'External' ? 'text-external' : ''}`}>{txn.to.company}</span>
                                         <span className="account-name">{txn.to.account}</span>
                                     </div>
                                 </td>
-                                <td>
+                                <td data-label="Amount">
                                     <span className={`amount-cell amount-${txn.type === 'Received' ? 'income' : txn.type === 'Paid' ? 'expense' : 'transfer'}`}>
                                         {txn.type === 'Paid' ? '-' : '+'}₹{txn.amount.toLocaleString('en-IN')}
                                     </span>
                                 </td>
-                                <td>{txn.mode}</td>
-                                <td><code className="text-muted small">{txn.ref || '-'}</code></td>
-                                <td>
+                                <td data-label="Mode">{txn.mode}</td>
+                                <td data-label="Reference"><code className="text-muted small">{txn.ref || '-'}</code></td>
+                                <td data-label="Actions">
                                     <div className="d-flex gap-2">
                                         {userRole === 'Super Admin' && (
                                             <>

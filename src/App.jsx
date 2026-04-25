@@ -188,6 +188,7 @@ function App() {
               interns={interns}
               onDelete={deleteIntern}
               onEdit={editIntern}
+              setActivePage={setActivePage}
             />
           ) : ['all-transactions', 'add-income', 'add-expense', 'transfer-money'].includes(activePage) ? (
             <TransactionsPage activePage={activePage} userRole={userRole} />
@@ -214,7 +215,7 @@ function App() {
                 defaultSystemSettings={defaultSystemSettings}
               />
             ) : (
-              <DashboardView interns={interns} />
+              <DashboardView interns={interns} setActivePage={setActivePage} />
             )
           ) : activePage.endsWith('-master') ? (
             userRole === 'Super Admin' ? (
@@ -226,7 +227,7 @@ function App() {
                 accounts={accounts}
               />
             ) : (
-              <DashboardView interns={interns} />
+              <DashboardView interns={interns} setActivePage={setActivePage} />
             )
           ) : (
             <EmptyView pageId={activePage} />

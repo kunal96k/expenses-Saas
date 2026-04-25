@@ -1,16 +1,16 @@
 /* Accounts Module Enhanced Styles */
 
 .accounts-container {
-    padding: 1.5rem;
+    padding: 0;
     animation: fadeIn 0.3s ease-out;
-    padding-top: 2rem;
 }
 
 .page-title {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 800;
     color: #0f172a;
     letter-spacing: -0.025em;
+    margin-bottom: 4px;
 }
 
 /* Filter Card */
