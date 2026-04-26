@@ -390,11 +390,27 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                         <div className="text-md-end w-100 w-md-auto">
                             <div className="d-flex flex-column flex-sm-row justify-content-between justify-content-md-end gap-4">
                                 <div className="balance-info-card">
-                                    <p className="label">Opening Balance ({activeAccountStatement.openingDate})</p>
+                                    <div className="d-flex align-items-center gap-3 mb-2">
+                                        <div className="icon-box-glass">
+                                            <i className="bi bi-wallet2 text-white-50"></i>
+                                        </div>
+                                        <div>
+                                            <p className="label mb-0">Opening Balance</p>
+                                            <span className="small text-white-50">{formatStatementDate(activeAccountStatement.openingDate)}</span>
+                                        </div>
+                                    </div>
                                     <h4 className="value">₹{activeAccountStatement.openingBalance.toLocaleString('en-IN')}</h4>
                                 </div>
                                 <div className={`balance-info-card ${activeAccountStatement.balance < 0 ? 'negative' : ''}`}>
-                                    <p className="label">Current Balance</p>
+                                    <div className="d-flex align-items-center gap-3 mb-2">
+                                        <div className="icon-box-glass">
+                                            <i className="bi bi-graph-up-arrow text-white-50"></i>
+                                        </div>
+                                        <div>
+                                            <p className="label mb-0">Current Balance</p>
+                                            <span className="small text-white-50">Real-time</span>
+                                        </div>
+                                    </div>
                                     <h4 className="value">₹{activeAccountStatement.balance.toLocaleString('en-IN')}</h4>
                                 </div>
                             </div>
@@ -404,15 +420,15 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                     <div className="card border-0 shadow-sm mb-4 mt-4">
                         <div className="card-body">
                             <div className="row g-3 align-items-end">
-                                <div className="col-12 col-md-3">
+                                <div className="col-6 col-md-3">
                                     <label className="form-label small text-muted">Date From</label>
                                     <input type="date" className="form-control" value={statementFilters.dateFrom} onChange={(e) => setStatementFilters(v => ({ ...v, dateFrom: e.target.value }))} />
                                 </div>
-                                <div className="col-12 col-md-3">
+                                <div className="col-6 col-md-3">
                                     <label className="form-label small text-muted">Date To</label>
                                     <input type="date" className="form-control" value={statementFilters.dateTo} onChange={(e) => setStatementFilters(v => ({ ...v, dateTo: e.target.value }))} />
                                 </div>
-                                <div className="col-12 col-md-2">
+                                <div className="col-6 col-md-2">
                                     <label className="form-label small text-muted">Transaction Type</label>
                                     <select className="form-select" value={statementFilters.type} onChange={(e) => setStatementFilters(v => ({ ...v, type: e.target.value }))}>
                                         <option value="all">All</option>
@@ -421,7 +437,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                         <option value="Moved">Moved</option>
                                     </select>
                                 </div>
-                                <div className="col-12 col-md-2">
+                                <div className="col-6 col-md-2">
                                     <label className="form-label small text-muted">Payment Mode</label>
                                     <select className="form-select" value={statementFilters.mode} onChange={(e) => setStatementFilters(v => ({ ...v, mode: e.target.value }))}>
                                         <option value="all">All</option>
@@ -433,33 +449,35 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                     <input type="text" className="form-control" placeholder="Description / Ref / Party" value={statementFilters.search} onChange={(e) => setStatementFilters(v => ({ ...v, search: e.target.value }))} />
                                 </div>
 
-                                <div className="col-12 d-flex gap-2">
-                                    <button
-                                        className="btn btn-primary-custom"
-                                        disabled={isFiltering}
-                                        onClick={() => {
-                                            setIsFiltering(true);
-                                            window.setTimeout(() => {
-                                                setAppliedStatementFilters(statementFilters);
-                                                setIsFiltering(false);
-                                            }, 300);
-                                        }}
-                                    >
-                                        {isFiltering ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Applying</> : <><i className="bi bi-funnel me-2"></i>Apply Filters</>}
-                                    </button>
-                                    <button
-                                        className="btn btn-light border"
-                                        disabled={isFiltering}
-                                        onClick={() => {
-                                            const reset = { dateFrom: '', dateTo: '', type: 'all', mode: 'all', search: '' };
-                                            setStatementFilters(reset);
-                                            setAppliedStatementFilters(reset);
-                                        }}
-                                    >
-                                        <i className="bi bi-arrow-counterclockwise me-2"></i>Reset
-                                    </button>
+                                <div className="col-12 d-flex flex-column flex-sm-row gap-3 align-items-sm-center mt-2">
+                                    <div className="d-flex gap-2 flex-grow-1">
+                                        <button
+                                            className="btn btn-primary-custom flex-grow-1"
+                                            disabled={isFiltering}
+                                            onClick={() => {
+                                                setIsFiltering(true);
+                                                window.setTimeout(() => {
+                                                    setAppliedStatementFilters(statementFilters);
+                                                    setIsFiltering(false);
+                                                }, 300);
+                                            }}
+                                        >
+                                            {isFiltering ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Applying</> : <><i className="bi bi-funnel me-2"></i>Apply Filters</>}
+                                        </button>
+                                        <button
+                                            className="btn btn-light border flex-grow-1"
+                                            disabled={isFiltering}
+                                            onClick={() => {
+                                                const reset = { dateFrom: '', dateTo: '', type: 'all', mode: 'all', search: '' };
+                                                setStatementFilters(reset);
+                                                setAppliedStatementFilters(reset);
+                                            }}
+                                        >
+                                            <i className="bi bi-arrow-counterclockwise me-2"></i>Reset
+                                        </button>
+                                    </div>
 
-                                    <div className="ms-auto small text-muted align-self-center">
+                                    <div className="small text-muted">
                                         <i className="bi bi-info-circle me-1"></i> Debit = money out, Credit = money in
                                     </div>
                                 </div>
@@ -574,21 +592,21 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                     ) : (
                                         paginatedStatementRows.map(row => (
                                             <tr key={row.id} style={{ cursor: 'pointer' }} onClick={() => openTxnModal(row)}>
-                                                <td>{formatStatementDate(row.date)}</td>
-                                                <td><code className="text-muted">{row.id}</code></td>
-                                                <td>
+                                                <td data-label="Date">{formatStatementDate(row.date)}</td>
+                                                <td data-label="Transaction ID"><code className="text-muted">{row.id}</code></td>
+                                                <td data-label="Description">
                                                     <div className="fw-semibold">{row.desc}</div>
                                                 </td>
-                                                <td className="text-muted small">{row.fromTo}</td>
-                                                <td>
+                                                <td data-label="From → To" className="text-muted small">{row.fromTo}</td>
+                                                <td data-label="Type">
                                                     <span className={`badge ${row.type === 'Received' ? 'bg-success-soft text-success' : row.type === 'Paid' ? 'bg-danger-soft text-danger' : 'bg-primary-soft text-primary'}`}>{row.type}</span>
                                                 </td>
-                                                <td><span className="badge bg-light text-dark border">{row.mode}</span></td>
-                                                <td><code className="text-muted">{row.ref || '-'}</code></td>
-                                                <td className="text-end text-muted">₹{(Number(row.debit || 0) + Number(row.credit || 0)).toLocaleString('en-IN')}</td>
-                                                <td className="text-end text-danger">{row.debit > 0 ? `₹${row.debit.toLocaleString('en-IN')}` : '-'}</td>
-                                                <td className="text-end text-success">{row.credit > 0 ? `₹${row.credit.toLocaleString('en-IN')}` : '-'}</td>
-                                                <td className={`text-end fw-bold statement-balance-col ${row.balance < 0 ? 'text-danger' : 'text-dark'}`}>₹{row.balance.toLocaleString('en-IN')}</td>
+                                                <td data-label="Payment Mode"><span className="badge bg-light text-dark border">{row.mode}</span></td>
+                                                <td data-label="Reference"><code className="text-muted">{row.ref || '-'}</code></td>
+                                                <td data-label="Amount" className="text-end text-muted">₹{(Number(row.debit || 0) + Number(row.credit || 0)).toLocaleString('en-IN')}</td>
+                                                <td data-label="Debit (Out)" className="text-end text-danger">{row.debit > 0 ? `₹${row.debit.toLocaleString('en-IN')}` : '-'}</td>
+                                                <td data-label="Credit (In)" className="text-end text-success">{row.credit > 0 ? `₹${row.credit.toLocaleString('en-IN')}` : '-'}</td>
+                                                <td data-label="Running Balance" className={`text-end fw-bold statement-balance-col ${row.balance < 0 ? 'text-danger' : 'text-dark'}`}>₹{row.balance.toLocaleString('en-IN')}</td>
                                             </tr>
                                         ))
                                     )}
@@ -760,28 +778,29 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                     </div>
 
                     {/* Accounts Table */}
-                    <div className="card border-0 shadow-sm overflow-hidden">
+                    {/* Accounts Table - Desktop */}
+                    <div className="table-responsive-wrapper d-none d-lg-block">
                         <div className="table-responsive">
-                            <table className="table table-hover mb-0 align-middle">
-                                <thead className="bg-light">
+                            <table className="custom-accounts-table mb-0 align-middle">
+                                <thead>
                                     <tr>
-                                        <th className="px-4 py-3 text-muted small text-uppercase" onClick={() => handleSort('company')} style={{ cursor: 'pointer' }}>Company {sortConfig.key === 'company' && '⇅'}</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase">Account Code</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase">Account Name</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase">Account Type</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase">Bank Name</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase text-end" onClick={() => handleSort('balance')} style={{ cursor: 'pointer' }}>Current Balance {sortConfig.key === 'balance' && '⇅'}</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase">Last Activity</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase text-center">Status</th>
-                                        <th className="px-4 py-3 text-muted small text-uppercase text-end">Actions</th>
+                                        <th onClick={() => handleSort('company')} style={{ cursor: 'pointer' }}>Company {sortConfig.key === 'company' && '⇅'}</th>
+                                        <th>Account Code</th>
+                                        <th>Account Name</th>
+                                        <th>Account Type</th>
+                                        <th>Bank Name</th>
+                                        <th className="text-end" onClick={() => handleSort('balance')} style={{ cursor: 'pointer' }}>Current Balance {sortConfig.key === 'balance' && '⇅'}</th>
+                                        <th>Last Activity</th>
+                                        <th className="text-center">Status</th>
+                                        <th className="text-end">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {paginatedAccounts.map(acc => (
                                         <tr key={acc.id} className="row-clickable" onClick={() => viewStatement(acc)}>
-                                            <td className="px-4"><span className="fw-bold text-dark">{acc.companyName}</span></td>
-                                            <td className="px-4"><code className="text-primary small fw-bold">{acc.code}</code></td>
-                                            <td className="px-4">
+                                            <td data-label="Company"><span className="fw-bold text-dark">{acc.companyName}</span></td>
+                                            <td data-label="Account Code"><code className="text-primary small fw-bold">{acc.code}</code></td>
+                                            <td data-label="Account Name">
                                                 <div className="d-flex align-items-center">
                                                     <div className={`icon-box me-3 ${acc.type === 'Bank' ? 'bg-primary-soft text-primary' : 'bg-warning-soft text-warning'}`}>
                                                         <i className={`bi ${acc.type === 'Bank' ? 'bi-bank' : 'bi-cash-stack'}`}></i>
@@ -789,27 +808,27 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                     <div className="fw-bold">{acc.name}</div>
                                                 </div>
                                             </td>
-                                            <td className="px-4">
-                                                <span className={`badge ${acc.type === 'Bank' ? 'bg-blue-soft text-blue' : 'bg-orange-soft text-orange'}`}>{acc.type}</span>
+                                            <td data-label="Account Type">
+                                                <span className={`status-badge ${acc.type === 'Bank' ? 'status-active' : 'status-warning'}`}>{acc.type}</span>
                                             </td>
-                                            <td className="px-4">{acc.type === 'Bank' ? (acc.bankName || '-') : '-'}</td>
-                                            <td className={`px-4 text-end fw-bold ${acc.balance < 0 ? 'text-danger' : 'text-dark'}`}>
+                                            <td data-label="Bank Name">{acc.type === 'Bank' ? (acc.bankName || '-') : '-'}</td>
+                                            <td data-label="Current Balance" className={`text-end fw-bold ${acc.balance < 0 ? 'text-danger' : 'text-dark'}`}>
                                                 {acc.balance < 0 && (
                                                     <i className="bi bi-exclamation-triangle-fill me-1" title="Negative balance — check transactions"></i>
                                                 )}
                                                 ₹{acc.balance.toLocaleString('en-IN')}
                                             </td>
-                                            <td className="px-4"><span className="text-muted small">{acc.lastActivity || '-'}</span></td>
-                                            <td className="px-4 text-center">
-                                                <span className={`badge ${acc.status === 'Active' ? 'bg-success' : 'bg-secondary'}`}>{acc.status}</span>
+                                            <td data-label="Last Activity"><span className="text-muted small">{acc.lastActivity || '-'}</span></td>
+                                            <td data-label="Status" className="text-center">
+                                                <span className={`status-badge ${acc.status === 'Active' ? 'status-active' : 'status-inactive'}`}>{acc.status}</span>
                                             </td>
-                                            <td className="px-4 text-end" onClick={(e) => e.stopPropagation()}>
+                                            <td data-label="Actions" className="text-end" onClick={(e) => e.stopPropagation()}>
                                                 <div className="d-flex justify-content-end gap-2">
-                                                    <button className="btn btn-icon-small" title="Statement" onClick={() => viewStatement(acc)}><i className="bi bi-file-text"></i></button>
+                                                    <button className="btn-icon-small" title="Statement" onClick={() => viewStatement(acc)}><i className="bi bi-file-text"></i></button>
                                                     {userRole === 'Super Admin' && (
                                                         <>
-                                                            <button className="btn btn-icon-small" title="Edit" onClick={() => openModal('editAccount', acc)}><i className="bi bi-pencil"></i></button>
-                                                            <button className="btn btn-icon-small text-danger" title="Delete" onClick={() => handleDelete(acc.id)}><i className="bi bi-trash"></i></button>
+                                                            <button className="btn-icon-small" title="Edit" onClick={() => openModal('editAccount', acc)}><i className="bi bi-pencil"></i></button>
+                                                            <button className="btn-icon-small text-danger" title="Delete" onClick={() => handleDelete(acc.id)}><i className="bi bi-trash"></i></button>
                                                         </>
                                                     )}
                                                 </div>
@@ -819,8 +838,66 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                 </tbody>
                             </table>
                         </div>
+                    </div>
 
-                        {/* Global Pagination Component */}
+                    {/* Accounts Cards - Mobile/Tablet */}
+                    <div className="account-cards-grid d-lg-none">
+                        {paginatedAccounts.map(acc => (
+                            <div key={acc.id} className="account-mobile-card shadow-sm border-0 mb-3" onClick={() => viewStatement(acc)}>
+                                <div className="card-body p-3">
+                                    <div className="d-flex justify-content-between align-items-start mb-3">
+                                        <div className="d-flex align-items-center">
+                                            <div className={`account-icon-mobile me-3 ${acc.type === 'Bank' ? 'bg-primary-soft text-primary' : 'bg-warning-soft text-warning'}`}>
+                                                <i className={`bi ${acc.type === 'Bank' ? 'bi-bank' : 'bi-cash-stack'}`}></i>
+                                            </div>
+                                            <div>
+                                                <h6 className="mb-0 fw-bold">{acc.name}</h6>
+                                                <span className="text-muted small">{acc.companyName}</span>
+                                            </div>
+                                        </div>
+                                        <span className={`badge ${acc.status === 'Active' ? 'bg-success' : 'bg-secondary'}`}>{acc.status}</span>
+                                    </div>
+                                    
+                                    <div className="row g-2 mb-3">
+                                        <div className="col-6">
+                                            <label className="text-muted small d-block">Code</label>
+                                            <code className="text-primary fw-bold">{acc.code}</code>
+                                        </div>
+                                        <div className="col-6">
+                                            <label className="text-muted small d-block">Type</label>
+                                            <span className={`badge-subtle ${acc.type === 'Bank' ? 'type-bank' : 'type-cash'}`}>{acc.type}</span>
+                                        </div>
+                                        {acc.type === 'Bank' && (
+                                            <div className="col-12">
+                                                <label className="text-muted small d-block">Bank</label>
+                                                <span className="fw-semibold">{acc.bankName || '-'}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="d-flex justify-content-between align-items-end pt-3 border-top">
+                                        <div>
+                                            <label className="text-muted small d-block">Current Balance</label>
+                                            <h5 className={`mb-0 fw-bold ${acc.balance < 0 ? 'text-danger' : 'text-dark'}`}>
+                                                ₹{acc.balance.toLocaleString('en-IN')}
+                                            </h5>
+                                        </div>
+                                        <div className="d-flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                            <button className="btn btn-icon-small" onClick={() => viewStatement(acc)}><i className="bi bi-file-text"></i></button>
+                                            {userRole === 'Super Admin' && (
+                                                <>
+                                                    <button className="btn btn-icon-small" onClick={() => openModal('editAccount', acc)}><i className="bi bi-pencil"></i></button>
+                                                    <button className="btn btn-icon-small text-danger" onClick={() => handleDelete(acc.id)}><i className="bi bi-trash"></i></button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-4">
                         <Pagination 
                             totalItems={filteredAccounts.length}
                             itemsPerPage={itemsPerPage}

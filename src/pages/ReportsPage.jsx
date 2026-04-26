@@ -167,16 +167,16 @@ const ReportsPage = ({ activePage, userRole }) => {
                     
                     <div className="report-filter-item">
                         <label className="report-filter-label">Date Range</label>
-                        <div className="d-flex gap-2">
+                        <div className="date-range-pair">
                             <input 
                                 type="date" 
-                                className="report-filter-input w-50" 
+                                className="report-filter-input" 
                                 value={filters.dateFrom}
                                 onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
                             />
                             <input 
                                 type="date" 
-                                className="report-filter-input w-50" 
+                                className="report-filter-input" 
                                 value={filters.dateTo}
                                 onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
                             />
@@ -378,45 +378,67 @@ const ReportsPage = ({ activePage, userRole }) => {
             {/* Drill-down Modal */}
             {drillDownData && (
                 <>
-                    <div className="modal-backdrop fade show"></div>
-                    <div className="modal fade show d-block" tabIndex="-1" role="dialog">
-                        <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
-                            <div className="modal-content">
-                                <div className="modal-header border-bottom-0 pb-0">
-                                    <h5 className="modal-title fw-bold">
-                                        <span className="text-primary">{drillDownData.period}</span> Transaction Details
-                                    </h5>
-                                    <button type="button" className="btn-close" onClick={() => setDrillDownData(null)}></button>
-                                </div>
-                                <div className="modal-body p-0 mt-3">
-                                    <div className="statement-table-wrapper" style={{ maxHeight: '400px' }}>
-                                        <table className="statement-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Date</th>
-                                                    <th>Description</th>
-                                                    <th>Type</th>
-                                                    <th className="text-end">Amount</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {initialTransactions.slice(0, 4).map(t => (
-                                                    <tr key={t.id}>
-                                                        <td>{t.date}</td>
-                                                        <td>{t.desc}</td>
-                                                        <td>{t.type}</td>
-                                                        <td className={`text-end fw-bold ${t.credit > 0 ? 'text-success' : 'text-danger'}`}>
-                                                            ₹{(t.credit || t.debit).toLocaleString()}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                    <div className="modal-backdrop fade show" onClick={() => setDrillDownData(null)}></div>
+                    <div className="modal fade show d-block dd-modal" tabIndex="-1" role="dialog">
+                        <div className="modal-dialog modal-lg modal-dialog-centered dd-modal-dialog" role="document">
+                            <div className="modal-content dd-modal-content">
+
+                                {/* Modal Header */}
+                                <div className="dd-modal-header">
+                                    <div className="dd-modal-title-block">
+                                        <div className="dd-modal-drag-handle"></div>
+                                        <div className="dd-modal-title-row">
+                                            <div>
+                                                <div className="dd-modal-period">{drillDownData.period}</div>
+                                                <div className="dd-modal-subtitle">Transaction Details</div>
+                                            </div>
+                                            <button className="dd-modal-close" onClick={() => setDrillDownData(null)}>
+                                                <i className="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {/* Summary pills */}
+                                    <div className="dd-modal-pills">
+                                        <span className="dd-pill income"><i className="bi bi-arrow-up-right me-1"></i>₹1,70,000</span>
+                                        <span className="dd-pill expense"><i className="bi bi-arrow-down-right me-1"></i>₹82,000</span>
+                                        <span className="dd-pill net"><i className="bi bi-graph-up me-1"></i>₹88,000 Net</span>
                                     </div>
                                 </div>
-                                <div className="modal-footer bg-light">
-                                    <button className="btn btn-secondary px-4" onClick={() => setDrillDownData(null)}>Close</button>
+
+                                {/* Transaction Cards */}
+                                <div className="dd-modal-body">
+                                    {initialTransactions.slice(0, 4).map((t, idx) => (
+                                        <div key={t.id} className="dd-txn-card">
+                                            <div className="dd-txn-left">
+                                                <div className="dd-txn-icon-wrap" style={{
+                                                    background: t.type === 'Received' ? '#ecfdf5' : t.type === 'Paid' ? '#fef2f2' : '#eff6ff'
+                                                }}>
+                                                    <i className={`bi ${t.type === 'Received' ? 'bi-arrow-down-left' : t.type === 'Paid' ? 'bi-arrow-up-right' : 'bi-arrow-left-right'}`}
+                                                        style={{ color: t.type === 'Received' ? '#10b981' : t.type === 'Paid' ? '#ef4444' : '#3b82f6', fontSize: '1rem' }}
+                                                    ></i>
+                                                </div>
+                                                <div className="dd-txn-info">
+                                                    <span className="dd-txn-desc">{t.desc}</span>
+                                                    <span className="dd-txn-meta">{t.date} · <code style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{t.ref}</code></span>
+                                                </div>
+                                            </div>
+                                            <div className="dd-txn-right">
+                                                <span className={`dd-txn-amount ${t.credit > 0 ? 'income' : t.type === 'Moved' ? 'transfer' : 'expense'}`}>
+                                                    {t.type === 'Received' ? '+' : t.type === 'Moved' ? '↔' : '-'}₹{(t.credit || t.debit).toLocaleString()}
+                                                </span>
+                                                <span className={`dd-txn-badge ${t.type.toLowerCase()}`}>{t.type}</span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
+
+                                {/* Modal Footer */}
+                                <div className="dd-modal-footer">
+                                    <button className="dd-close-btn" onClick={() => setDrillDownData(null)}>
+                                        Done
+                                    </button>
+                                </div>
+
                             </div>
                         </div>
                     </div>
@@ -484,53 +506,97 @@ const BankStatementView = ({ transactions, filters, onSort, sortConfig, currentP
                 </div>
             </div>
 
-            <div className="statement-table-wrapper">
-                <table className="statement-table">
-                    <thead>
-                        <tr>
-                            <th className="sortable-header" onClick={() => onSort('date')}>Date <i className={`bi bi-caret-${sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
-                            <th>ID</th>
-                            <th>Description</th>
-                            <th>From → To</th>
-                            <th>Type</th>
-                            <th>Mode</th>
-                            <th>Ref</th>
-                            <th className="text-end sortable-header" onClick={() => onSort('debit')}>Debit <i className={`bi bi-caret-${sortConfig.key === 'debit' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
-                            <th className="text-end sortable-header" onClick={() => onSort('credit')}>Credit <i className={`bi bi-caret-${sortConfig.key === 'credit' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
-                            <th className="text-end">Balance</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tableData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(txn => (
-                            <tr key={txn.id} className="statement-row">
-                                <td>{txn.date}</td>
-                                <td><code className="small text-primary">{txn.id}</code></td>
-                                <td>{txn.desc}</td>
-                                <td>
-                                    <div className="movement-cell">
-                                        <span>{txn.from}</span>
-                                        <i className="bi bi-arrow-right movement-arrow"></i>
-                                        <span className="movement-to">{txn.to}</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span className={`badge rounded-pill ${txn.type === 'Received' ? 'bg-success-subtle text-success' : txn.type === 'Paid' ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'}`}>
-                                        {txn.type}
-                                    </span>
-                                </td>
-                                <td>{txn.mode}</td>
-                                <td><code className="text-muted small">{txn.ref}</code></td>
-                                <td className="text-end amount-out">{txn.debit > 0 ? `₹${txn.debit.toLocaleString()}` : '-'}</td>
-                                <td className="text-end amount-in">{txn.credit > 0 ? `₹${txn.credit.toLocaleString()}` : '-'}</td>
-                                <td className="text-end running-balance">₹{txn.runningBal.toLocaleString()}</td>
+            {/* Desktop Table */}
+            <div className="report-table-desktop">
+                <div className="statement-table-wrapper">
+                    <table className="statement-table">
+                        <thead>
+                            <tr>
+                                <th className="sortable-header" onClick={() => onSort('date')}>Date <i className={`bi bi-caret-${sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
+                                <th>ID</th>
+                                <th>Description</th>
+                                <th>From → To</th>
+                                <th>Type</th>
+                                <th>Mode</th>
+                                <th>Ref</th>
+                                <th className="text-end sortable-header" onClick={() => onSort('debit')}>Debit <i className={`bi bi-caret-${sortConfig.key === 'debit' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
+                                <th className="text-end sortable-header" onClick={() => onSort('credit')}>Credit <i className={`bi bi-caret-${sortConfig.key === 'credit' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
+                                <th className="text-end">Balance</th>
                             </tr>
-                        ))}
-                        <tr className="closing-row">
-                            <td colSpan="8" className="text-end border-0">Closing Balance on {filters.dateTo}</td>
-                            <td colSpan="2" className="text-end">₹{closingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {tableData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(txn => (
+                                <tr key={txn.id} className="statement-row">
+                                    <td>{txn.date}</td>
+                                    <td><code className="small text-primary">{txn.id}</code></td>
+                                    <td>{txn.desc}</td>
+                                    <td>
+                                        <div className="movement-cell">
+                                            <span>{txn.from}</span>
+                                            <i className="bi bi-arrow-right movement-arrow"></i>
+                                            <span className="movement-to">{txn.to}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span className={`badge rounded-pill ${txn.type === 'Received' ? 'bg-success-subtle text-success' : txn.type === 'Paid' ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'}`}>
+                                            {txn.type}
+                                        </span>
+                                    </td>
+                                    <td>{txn.mode}</td>
+                                    <td><code className="text-muted small">{txn.ref}</code></td>
+                                    <td className="text-end amount-out">{txn.debit > 0 ? `₹${txn.debit.toLocaleString()}` : '-'}</td>
+                                    <td className="text-end amount-in">{txn.credit > 0 ? `₹${txn.credit.toLocaleString()}` : '-'}</td>
+                                    <td className="text-end running-balance">₹{txn.runningBal.toLocaleString()}</td>
+                                </tr>
+                            ))}
+                            <tr className="closing-row">
+                                <td colSpan="8" className="text-end border-0">Closing Balance on {filters.dateTo}</td>
+                                <td colSpan="2" className="text-end">₹{closingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="report-mobile-cards">
+                {tableData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(txn => (
+                    <div key={txn.id} className="report-txn-card">
+                        <div className="rtcard-header">
+                            <span className="rtcard-id">{txn.id}</span>
+                            <span className="rtcard-date">{txn.date}</span>
+                            <span className={`badge rounded-pill ${txn.type === 'Received' ? 'bg-success-subtle text-success' : txn.type === 'Paid' ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'}`}>{txn.type}</span>
+                        </div>
+                        <div className="rtcard-body">
+                            <div className="rtcard-desc">{txn.desc}</div>
+                            <div className="rtcard-row">
+                                <span className="rtcard-label">From → To</span>
+                                <span className="rtcard-value">{txn.from} → {txn.to}</span>
+                            </div>
+                            <div className="rtcard-row">
+                                <span className="rtcard-label">Mode</span>
+                                <span className="rtcard-value">{txn.mode}</span>
+                            </div>
+                            <div className="rtcard-row">
+                                <span className="rtcard-label">Ref</span>
+                                <code className="rtcard-value" style={{fontSize:'0.76rem'}}>{txn.ref}</code>
+                            </div>
+                        </div>
+                        <div className="rtcard-footer">
+                            <div>
+                                <div style={{fontSize:'0.65rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:'2px'}}>{txn.debit > 0 ? 'Debit' : 'Credit'}</div>
+                                {txn.debit > 0
+                                    ? <span className="rtcard-amount-out">-₹{txn.debit.toLocaleString()}</span>
+                                    : <span className="rtcard-amount-in">+₹{txn.credit.toLocaleString()}</span>
+                                }
+                            </div>
+                            <div style={{textAlign:'right'}}>
+                                <div style={{fontSize:'0.65rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:'2px'}}>Balance</div>
+                                <span className="rtcard-balance">₹{txn.runningBal.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             <Pagination 
@@ -613,7 +679,8 @@ const CompanyReportView = ({ transactions, filters, currentPage, itemsPerPage, o
             </div>
 
             <h5 className="mb-3 fw-bold">Recent Company Transactions</h5>
-            <div className="statement-table-wrapper border rounded">
+            {/* Desktop Table */}
+            <div className="report-table-desktop statement-table-wrapper border rounded">
                 <table className="statement-table">
                     <thead>
                         <tr>
@@ -638,6 +705,27 @@ const CompanyReportView = ({ transactions, filters, currentPage, itemsPerPage, o
                         ))}
                     </tbody>
                 </table>
+            </div>
+            {/* Mobile Cards */}
+            <div className="report-mobile-cards">
+                {transactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(txn => (
+                    <div key={txn.id} className="report-txn-card">
+                        <div className="rtcard-header">
+                            <span className="rtcard-date">{txn.date}</span>
+                            <span className="rtcard-value fw-semibold">{txn.account}</span>
+                            <span className={`badge rounded-pill ${txn.credit > 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'}`}>{txn.type}</span>
+                        </div>
+                        <div className="rtcard-body">
+                            <div className="rtcard-desc">{txn.desc}</div>
+                        </div>
+                        <div className="rtcard-footer">
+                            <span style={{fontSize:'0.76rem', color:'#64748b'}}>Amount</span>
+                            <span className={txn.credit > 0 ? 'rtcard-amount-in' : 'rtcard-amount-out'}>
+                                {txn.credit > 0 ? `+₹${txn.credit.toLocaleString()}` : `-₹${txn.debit.toLocaleString()}`}
+                            </span>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             <Pagination 
@@ -676,7 +764,8 @@ const CombinedReportView = ({ transactions, filters, currentPage, itemsPerPage, 
                 </div>
             </div>
 
-            <div className="statement-table-wrapper">
+            {/* Desktop Table */}
+            <div className="report-table-desktop statement-table-wrapper">
                 <table className="statement-table">
                     <thead>
                         <tr>
@@ -708,6 +797,51 @@ const CombinedReportView = ({ transactions, filters, currentPage, itemsPerPage, 
                     </tbody>
                 </table>
             </div>
+
+            {/* Mobile Cards */}
+            <div className="report-mobile-cards">
+                {tableData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(txn => (
+                    <div key={txn.id} className="report-txn-card">
+                        <div className="rtcard-header">
+                            <span className="rtcard-date">{txn.date}</span>
+                            <span className="rtcard-id">{txn.company}</span>
+                            <span className={`badge rounded-pill ${txn.type === 'Received' ? 'bg-success-subtle text-success' : txn.type === 'Paid' ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'}`}>{txn.type}</span>
+                        </div>
+                        <div className="rtcard-body">
+                            <div className="rtcard-row">
+                                <span className="rtcard-label">Account</span>
+                                <span className="rtcard-value">{txn.account}</span>
+                            </div>
+                            <div className="rtcard-row">
+                                <span className="rtcard-label">From → To</span>
+                                <span className="rtcard-value">{txn.from} → {txn.to}</span>
+                            </div>
+                            <div className="rtcard-row">
+                                <span className="rtcard-label">Net Effect</span>
+                                <span className="rtcard-value fw-bold" style={{color: txn.credit > txn.debit ? '#10b981' : '#ef4444'}}>
+                                    ₹{(txn.credit - txn.debit).toLocaleString()}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="rtcard-footer">
+                            <div>
+                                <div style={{fontSize:'0.65rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:'2px'}}>
+                                    {txn.debit > 0 ? 'Debit' : 'Credit'}
+                                </div>
+                                {txn.debit > 0
+                                    ? <span className="rtcard-amount-out">-₹{txn.debit.toLocaleString()}</span>
+                                    : <span className="rtcard-amount-in">+₹{txn.credit.toLocaleString()}</span>
+                                }
+                            </div>
+                            <div style={{textAlign:'right'}}>
+                                <div style={{fontSize:'0.65rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:'2px'}}>Balance</div>
+                                <span className="rtcard-balance">₹{txn.runningBal.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
 
             <Pagination 
                 totalItems={tableData.length}
@@ -774,29 +908,114 @@ const DateWiseReportView = ({ transactions, filters, setDrillDown }) => {
         }
     };
 
+    const periodicData = [
+        {
+            period: 'April 2024', month: 'Apr', year: '2024', icon: 'bi-calendar3',
+            credit: 170000, debit: 82000, txns: 7,
+            trend: +12.4, trendDir: 'up',
+            categories: [{ name: 'Consulting', amount: 125000, type: 'income' }, { name: 'Rent', amount: 35000, type: 'expense' }],
+        },
+        {
+            period: 'March 2024', month: 'Mar', year: '2024', icon: 'bi-calendar3',
+            credit: 145000, debit: 95000, txns: 9,
+            trend: -5.2, trendDir: 'down',
+            categories: [{ name: 'Development', amount: 90000, type: 'income' }, { name: 'Marketing', amount: 42000, type: 'expense' }],
+        },
+        {
+            period: 'February 2024', month: 'Feb', year: '2024', icon: 'bi-calendar3',
+            credit: 190000, debit: 150000, txns: 11,
+            trend: +8.1, trendDir: 'up',
+            categories: [{ name: 'Projects', amount: 150000, type: 'income' }, { name: 'Salaries', amount: 90000, type: 'expense' }],
+        },
+        {
+            period: 'January 2024', month: 'Jan', year: '2024', icon: 'bi-calendar3',
+            credit: 120000, debit: 90000, txns: 6,
+            trend: +2.9, trendDir: 'up',
+            categories: [{ name: 'Retainer', amount: 80000, type: 'income' }, { name: 'Software', amount: 25000, type: 'expense' }],
+        },
+    ];
+
     return (
         <>
+            {/* Report Header */}
             <div className="report-header">
-                <h2>Date-wise Performance Analysis</h2>
-                <p className="report-subtitle">Monthly and Quarterly trends | Click chart bars to drill-down</p>
+                <div className="report-title-row">
+                    <div className="report-title-main">
+                        <h2>Date-wise Performance</h2>
+                        <p className="report-subtitle">Monthly & quarterly trends — tap chart bars to drill-down</p>
+                    </div>
+                    <div className="report-meta">
+                        <div>Generated: {new Date().toLocaleString()}</div>
+                        <div>Showing: Jan – Apr 2024</div>
+                    </div>
+                </div>
             </div>
+
+            {/* KPI Summary Strip */}
+            <div className="dw-kpi-strip">
+                <div className="dw-kpi-item">
+                    <i className="bi bi-arrow-up-circle-fill dw-kpi-icon income"></i>
+                    <div>
+                        <div className="dw-kpi-label">Total Income</div>
+                        <div className="dw-kpi-value income">₹6,25,000</div>
+                    </div>
+                </div>
+                <div className="dw-kpi-divider"></div>
+                <div className="dw-kpi-item">
+                    <i className="bi bi-arrow-down-circle-fill dw-kpi-icon expense"></i>
+                    <div>
+                        <div className="dw-kpi-label">Total Expense</div>
+                        <div className="dw-kpi-value expense">₹4,17,000</div>
+                    </div>
+                </div>
+                <div className="dw-kpi-divider"></div>
+                <div className="dw-kpi-item">
+                    <i className="bi bi-graph-up-arrow dw-kpi-icon net"></i>
+                    <div>
+                        <div className="dw-kpi-label">Net Savings</div>
+                        <div className="dw-kpi-value net">₹2,08,000</div>
+                    </div>
+                </div>
+                <div className="dw-kpi-divider"></div>
+                <div className="dw-kpi-item">
+                    <i className="bi bi-receipt dw-kpi-icon txn"></i>
+                    <div>
+                        <div className="dw-kpi-label">Transactions</div>
+                        <div className="dw-kpi-value txn">33</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Charts */}
             <div className="charts-grid">
                 <div className="chart-container">
-                    <h6 className="fw-bold mb-4">Credit vs Debit (Monthly)</h6>
-                    <div style={{ height: '250px', width: '100%', cursor: 'pointer' }}>
+                    <div className="dw-chart-header">
+                        <span className="dw-chart-title">Credit vs Debit</span>
+                        <span className="dw-chart-badge">Monthly</span>
+                    </div>
+                    <div style={{ height: '230px', width: '100%', cursor: 'pointer' }}>
                         <Bar data={barData} options={options} />
                     </div>
                 </div>
                 <div className="chart-container">
-                    <h6 className="fw-bold mb-4">Balance Trend</h6>
-                    <div style={{ height: '250px', width: '100%' }}>
+                    <div className="dw-chart-header">
+                        <span className="dw-chart-title">Balance Trend</span>
+                        <span className="dw-chart-badge">Running</span>
+                    </div>
+                    <div style={{ height: '230px', width: '100%' }}>
                         <Line data={lineData} options={options} />
                     </div>
                 </div>
             </div>
-            
-            <div className="p-4 pt-0">
-                <h5 className="mb-3 fw-bold">Periodic Performance Table</h5>
+
+            {/* Section title */}
+            <div className="dw-section-header">
+                <span className="dw-section-title">Monthly Breakdown</span>
+                <span className="dw-section-count">{periodicData.length} periods</span>
+            </div>
+
+            {/* Desktop Table */}
+            <div className="report-table-desktop p-4 pt-0">
                 <div className="statement-table-wrapper border rounded">
                     <table className="statement-table">
                         <thead>
@@ -805,19 +1024,28 @@ const DateWiseReportView = ({ transactions, filters, setDrillDown }) => {
                                 <th className="text-end">Total Credit</th>
                                 <th className="text-end">Total Debit</th>
                                 <th className="text-end">Net Flow</th>
+                                <th className="text-center">Txns</th>
+                                <th className="text-center">Trend</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {['April 2024', 'March 2024'].map(p => (
-                                <tr key={p}>
-                                    <td>{p}</td>
-                                    <td className="text-end text-success">₹1,70,000</td>
-                                    <td className="text-end text-danger">₹82,000</td>
-                                    <td className="text-end fw-bold">₹88,000</td>
+                            {periodicData.map(p => (
+                                <tr key={p.period}>
+                                    <td className="fw-semibold">{p.period}</td>
+                                    <td className="text-end text-success fw-bold">₹{p.credit.toLocaleString('en-IN')}</td>
+                                    <td className="text-end text-danger fw-bold">₹{p.debit.toLocaleString('en-IN')}</td>
+                                    <td className="text-end fw-bold" style={{ color: '#5c67f2' }}>₹{(p.credit - p.debit).toLocaleString('en-IN')}</td>
+                                    <td className="text-center">{p.txns}</td>
+                                    <td className="text-center">
+                                        <span className={`dw-trend-badge ${p.trendDir}`}>
+                                            <i className={`bi bi-arrow-${p.trendDir}-right`}></i>
+                                            {Math.abs(p.trend)}%
+                                        </span>
+                                    </td>
                                     <td>
-                                        <button className="btn btn-sm btn-light border text-primary" onClick={() => setDrillDown({ period: p })}>
-                                            <i className="bi bi-eye"></i> View Details
+                                        <button className="btn btn-sm btn-light border text-primary" onClick={() => setDrillDown({ period: p.period })}>
+                                            <i className="bi bi-eye"></i> View
                                         </button>
                                     </td>
                                 </tr>
@@ -825,6 +1053,85 @@ const DateWiseReportView = ({ transactions, filters, setDrillDown }) => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* ── Mobile iOS-style Period Cards ── */}
+            <div className="report-mobile-cards dw-period-cards">
+                {periodicData.map((p) => {
+                    const net = p.credit - p.debit;
+                    const creditPct = Math.round((p.credit / (p.credit + p.debit)) * 100);
+                    return (
+                        <div key={p.period} className="dw-ios-card">
+                            {/* Card Header */}
+                            <div className="dw-ios-header">
+                                <div className="dw-ios-month-badge">
+                                    <span className="dw-ios-month">{p.month}</span>
+                                    <span className="dw-ios-year">{p.year}</span>
+                                </div>
+                                <div className="dw-ios-title-block">
+                                    <span className="dw-ios-period">{p.period}</span>
+                                    <span className="dw-ios-txn-count"><i className="bi bi-receipt me-1"></i>{p.txns} transactions</span>
+                                </div>
+                                <span className={`dw-trend-badge ${p.trendDir}`}>
+                                    <i className={`bi bi-arrow-${p.trendDir}-right`}></i>
+                                    {Math.abs(p.trend)}%
+                                </span>
+                            </div>
+
+                            {/* Main Amounts */}
+                            <div className="dw-ios-amounts">
+                                <div className="dw-ios-amount-block">
+                                    <span className="dw-ios-amount-label"><i className="bi bi-arrow-up-right-circle-fill me-1"></i>Income</span>
+                                    <span className="dw-ios-amount income">₹{p.credit.toLocaleString('en-IN')}</span>
+                                </div>
+                                <div className="dw-ios-amount-divider"></div>
+                                <div className="dw-ios-amount-block">
+                                    <span className="dw-ios-amount-label"><i className="bi bi-arrow-down-right-circle-fill me-1"></i>Expense</span>
+                                    <span className="dw-ios-amount expense">₹{p.debit.toLocaleString('en-IN')}</span>
+                                </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="dw-ios-progress-section">
+                                <div className="dw-ios-progress-labels">
+                                    <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.72rem' }}>Credit {creditPct}%</span>
+                                    <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.72rem' }}>Debit {100 - creditPct}%</span>
+                                </div>
+                                <div className="dw-ios-progress-bar">
+                                    <div className="dw-ios-progress-fill" style={{ width: `${creditPct}%` }}></div>
+                                </div>
+                            </div>
+
+                            {/* Top Categories */}
+                            <div className="dw-ios-categories">
+                                {p.categories.map(c => (
+                                    <div key={c.name} className="dw-ios-cat-chip">
+                                        <i className={`bi ${c.type === 'income' ? 'bi-graph-up' : 'bi-graph-down'} me-1`}
+                                            style={{ color: c.type === 'income' ? '#10b981' : '#ef4444' }}></i>
+                                        <span className="dw-ios-cat-name">{c.name}</span>
+                                        <span className="dw-ios-cat-amount" style={{ color: c.type === 'income' ? '#10b981' : '#ef4444' }}>
+                                            ₹{c.amount.toLocaleString('en-IN')}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Net Flow Footer */}
+                            <div className="dw-ios-net-row">
+                                <span className="dw-ios-net-label">Net Flow</span>
+                                <span className={`dw-ios-net-amount ${net >= 0 ? 'positive' : 'negative'}`}>
+                                    {net >= 0 ? '+' : ''}₹{net.toLocaleString('en-IN')}
+                                </span>
+                            </div>
+
+                            {/* CTA */}
+                            <button className="dw-ios-cta" onClick={() => setDrillDown({ period: p.period })}>
+                                <i className="bi bi-bar-chart-line me-2"></i>View Detailed Breakdown
+                                <i className="bi bi-chevron-right ms-auto"></i>
+                            </button>
+                        </div>
+                    );
+                })}
             </div>
         </>
     );

@@ -269,8 +269,63 @@ const TransactionsPage = ({ activePage, userRole }) => {
                 <div className={`tab-item ${activeTab === 'moved' ? 'active' : ''}`} onClick={() => setActiveTab('moved')}>Moved</div>
             </div>
 
-            {/* Table Section */}
-            <div className="transaction-table-container mb-5">
+            {/* Transactions List — Card Format for Mobile */}
+            <div className="d-block d-md-none">
+                <div className="transaction-cards-wrap">
+                    {paginatedTransactions.map(txn => {
+                        const isIncome = txn.type === 'Received';
+                        const isExpense = txn.type === 'Paid';
+
+                        return (
+                            <div key={txn.id} className="txn-mobile-card" onClick={() => openModal('viewTransaction', txn)}>
+                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                    <div className="pe-2">
+                                        <div className="txn-desc fw-bold">{txn.desc}</div>
+                                        <div className="text-muted small-text">{txn.date} • <span className="opacity-75">#{txn.id}</span></div>
+                                    </div>
+                                    <div className={`txn-amount text-end fw-bold ${isIncome ? 'text-success' : isExpense ? 'text-danger' : 'text-primary'}`}>
+                                        {isExpense ? '-' : '+'}₹{txn.amount.toLocaleString('en-IN')}
+                                    </div>
+                                </div>
+                                
+                                <div className="txn-movement mb-3">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <div className="movement-point">
+                                            <span className="company-tag">{txn.from.company}</span>
+                                            <span className="account-tag">{txn.from.account}</span>
+                                        </div>
+                                        <i className="bi bi-arrow-right text-muted px-1"></i>
+                                        <div className="movement-point">
+                                            <span className="company-tag">{txn.to.company}</span>
+                                            <span className="account-tag">{txn.to.account}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="d-flex flex-wrap gap-2">
+                                    <span className={`txn-pill pill-${txn.type.toLowerCase()}`}>{txn.type}</span>
+                                    <span className="txn-pill pill-light">{txn.mode}</span>
+                                    {txn.ref && <span className="txn-pill pill-light">Ref: {txn.ref}</span>}
+                                </div>
+
+                                {userRole === 'Super Admin' && (
+                                    <div className="txn-card-actions mt-3 pt-2 border-top d-flex gap-2">
+                                        <button className="btn btn-sm btn-light border flex-grow-1" onClick={(e) => { e.stopPropagation(); openModal('editTransaction', txn); }}>
+                                            <i className="bi bi-pencil me-1"></i> Edit
+                                        </button>
+                                        <button className="btn btn-sm btn-light border text-danger flex-grow-1" onClick={(e) => { e.stopPropagation(); handleDelete(txn.id); }}>
+                                            <i className="bi bi-trash me-1"></i> Delete
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Table Section — Desktop Only */}
+            <div className="transaction-table-container d-none d-md-block mb-5">
                 <table className="transaction-table">
                     <thead>
                         <tr>
@@ -328,8 +383,10 @@ const TransactionsPage = ({ activePage, userRole }) => {
                         ))}
                     </tbody>
                 </table>
+            </div>
 
-                {/* Global Pagination Component */}
+            {/* Pagination Component */}
+            <div className="mb-5">
                 <Pagination 
                     totalItems={filteredTransactions.length}
                     itemsPerPage={itemsPerPage}

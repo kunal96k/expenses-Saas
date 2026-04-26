@@ -99,39 +99,46 @@
 
 .users-table-card {
     background: #fff;
-    border-radius: 14px;
+    border-radius: 16px;
     border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
     overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.users-table-card:hover {
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
 }
 
 .users-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
     border-spacing: 0;
     min-width: 760px;
 }
 
 .users-table th {
     background: #f8fafc;
-    padding: 13px 18px;
+    padding: 14px 20px;
     font-size: 0.68rem;
     font-weight: 800;
     color: #64748b;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.08em;
     border-bottom: 2px solid #f1f5f9;
     white-space: nowrap;
+    text-align: left;
 }
 
 .users-table td {
-    padding: 14px 18px;
+    padding: 16px 20px;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
+    transition: all 0.2s;
 }
 
-.users-table tbody tr { transition: background 0.15s; }
-.users-table tbody tr:hover { background: #f8fafc; }
+.users-table tbody tr { transition: all 0.2s; }
+.users-table tbody tr:hover { background: #fcfcfd; }
 .users-table tbody tr:last-child td { border-bottom: none; }
 
 .row-inactive td { opacity: 0.55; }
@@ -179,30 +186,49 @@
 
 /* Role Badges */
 .role-badge {
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 0.7rem;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.72rem;
     font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     white-space: nowrap;
-    display: inline-block;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
 }
 
-.role-badge.super-admin { background: #fee2e2; color: #dc2626; }
-.role-badge.admin       { background: #dbeafe; color: #2563eb; }
-.role-badge.manager     { background: #fef3c7; color: #d97706; }
-.role-badge.viewer      { background: #f1f5f9; color: #64748b; }
+.role-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.role-badge.super-admin { background: #fef2f2; color: #dc2626; border-color: #fee2e2; }
+.role-badge.admin       { background: #eff6ff; color: #2563eb; border-color: #dbeafe; }
+.role-badge.manager     { background: #fffbeb; color: #d97706; border-color: #fef3c7; }
+.role-badge.viewer      { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }
 
 /* Company Pills */
-.company-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.company-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .company-pill {
-    padding: 2px 8px;
-    background: #f1f5f9;
+    padding: 4px 10px;
+    background: #f8fafc;
     color: #475569;
-    border-radius: 5px;
+    border-radius: 6px;
     font-size: 0.7rem;
     font-weight: 600;
     border: 1px solid #e2e8f0;
+    transition: all 0.2s;
+}
+
+.company-pill:hover {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #1e293b;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 /* Status Text */
@@ -323,7 +349,7 @@
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── Mobile ─── */
+/* ─── Mobile breakpoints ─── */
 @media (max-width: 992px) {
     .users-header { flex-direction: column; align-items: flex-start; }
     .header-actions { width: 100%; }
@@ -336,3 +362,205 @@
     .filter-grid { grid-template-columns: 1fr; }
     .users-filter-card { padding: 14px; }
 }
+
+@media (max-width: 480px) {
+    .page-title { font-size: 1.1rem; }
+}
+
+/* ============================================================
+   MOBILE CARDS — Users Module
+   ============================================================ */
+.users-mobile-cards {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.users-empty-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 48px 20px;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.users-empty-mobile i { font-size: 2rem; }
+
+/* Individual User Card */
+.user-mobile-card {
+    background: #fff;
+    border: 1px solid #e8edf4;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.user-mobile-card:active {
+    transform: scale(0.99);
+}
+
+.user-mobile-card.card-inactive {
+    opacity: 0.6;
+    background: #fafafa;
+}
+
+/* Card Header — Avatar + Name/Email + Status dot */
+.ucard-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    background: #fafbfd;
+}
+
+.ucard-title-block {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ucard-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ucard-email {
+    font-size: 0.76rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Card Body — field rows */
+.ucard-body {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Card Footer — status + actions */
+.ucard-footer {
+    padding: 12px 16px;
+    border-top: 1px solid #f1f5f9;
+    background: #fafbfd;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Shared: mcard-status-dot, mcard-label, mcard-value, mcard-row */
+/* (defined in MastersPage.css or globally — duplicated here for safety) */
+.mcard-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dot-active   { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
+.dot-inactive { background: #94a3b8; box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.15); }
+
+.mcard-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 24px;
+}
+
+.mcard-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mcard-value {
+    font-size: 0.84rem;
+    color: #334155;
+    font-weight: 500;
+    text-align: right;
+}
+
+.mcard-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.mcard-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.mcard-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+}
+
+.mcard-btn-edit {
+    background: #eef0fd;
+    color: #5c67f2;
+    border: 1px solid #d4d8f9;
+}
+
+.mcard-btn-edit:hover, .mcard-btn-edit:active {
+    background: #5c67f2;
+    color: #fff;
+    border-color: #5c67f2;
+}
+
+.mcard-btn-delete {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.mcard-btn-delete:hover, .mcard-btn-delete:active {
+    background: #dc2626;
+    color: #fff;
+    border-color: #dc2626;
+}
+
+/* Status text pill (reused from masters) */
+.status-text-pill {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.status-text-pill.active   { background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; }
+.status-text-pill.inactive { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }

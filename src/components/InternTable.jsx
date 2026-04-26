@@ -33,7 +33,7 @@ const InternTable = ({ interns, onDelete, onEdit }) => {
                 const initials = intern.name.split(' ').map(n => n[0]).join('');
                 return (
                   <tr key={intern.id}>
-                    <td>
+                    <td data-label="Profile">
                       <div className="user-cell">
                         <div className="avatar-initial">{initials}</div>
                         <div>
@@ -42,14 +42,14 @@ const InternTable = ({ interns, onDelete, onEdit }) => {
                         </div>
                       </div>
                     </td>
-                    <td>{intern.dept}</td>
-                    <td>{intern.date}</td>
-                    <td>
+                    <td data-label="Department">{intern.dept}</td>
+                    <td data-label="Joined Date">{intern.date}</td>
+                    <td data-label="Status">
                       <span className={`status-badge status-${intern.status}`}>
                         {intern.status.charAt(0).toUpperCase() + intern.status.slice(1)}
                       </span>
                     </td>
-                    <td className="text-end">
+                    <td data-label="Actions" className="text-end">
                       <div className="d-flex gap-2 justify-content-end">
                         <button className="btn-sm-action" onClick={() => onEdit(intern.id)} title="Edit">
                           <i className="bi bi-pencil"></i>

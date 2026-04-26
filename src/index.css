@@ -151,6 +151,7 @@ a {
 .sidebar-header {
   height: var(--header-height);
   display: flex;
+  justify-content: center;
   align-items: center;
   padding: 0 16px;
   border-bottom: 1px solid var(--sidebar-border);
@@ -179,12 +180,13 @@ a {
 }
 
 .brand-logo img {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
 }
 
 .brand-content {
+  margin-top: 1.2rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -207,6 +209,7 @@ a {
   white-space: nowrap;
   letter-spacing: 0.06em;
   margin-top: 2px;
+  margin-left: 0.25rem;
 }
 
 .sidebar.collapsed .brand-content {
@@ -289,6 +292,18 @@ a {
 .menu-link.active {
   background: var(--sidebar-active-bg);
   color: var(--sidebar-active-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.menu-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 4px;
+  background: #fff;
+  border-radius: 0 4px 4px 0;
 }
 
 .menu-link.active i {
@@ -355,6 +370,19 @@ a {
   color: var(--sidebar-active-text);
   background: var(--sidebar-active-bg);
   font-weight: 500;
+  position: relative;
+}
+
+.submenu-link.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 25%;
+  height: 50%;
+  width: 3px;
+  background: #fff;
+  border-radius: 0 3px 3px 0;
+  opacity: 0.8;
 }
 
 .submenu-link.active i {
@@ -932,28 +960,36 @@ a {
 /* ============================================================
    9. TABLES
    ============================================================ */
+.custom-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .custom-table th {
   background: var(--bg-muted);
   font-weight: 700;
-  color: var(--text-muted);
-  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  border-bottom: 1px solid var(--border-light);
-  padding: 12px 18px;
+  letter-spacing: 0.08em;
+  border-bottom: 2px solid var(--border-light);
+  padding: 14px 20px;
   white-space: nowrap;
+  transition: all var(--transition-fast);
 }
 
 .custom-table td {
-  padding: 13px 18px;
+  padding: 16px 20px;
   vertical-align: middle;
   border-bottom: 1px solid var(--border-light);
   color: var(--text);
-  font-size: 0.86rem;
+  font-size: 0.875rem;
+  transition: all var(--transition-fast);
 }
 
 .custom-table tbody tr {
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
 .custom-table tbody tr:hover {
@@ -962,48 +998,81 @@ a {
 
 .custom-table tbody tr.active-row {
   background-color: var(--primary-light);
+  border-left: 3px solid var(--primary);
+}
+
+/* Premium Table Container */
+.table-container-premium {
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow var(--transition);
+}
+
+.table-container-premium:hover {
+  box-shadow: var(--shadow-md);
 }
 
 /* ============================================================
-   10. STATUS BADGES
+   10. STATUS & PREMIUM BADGES
    ============================================================ */
-.status-badge {
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
+.status-badge,
+.badge {
+  padding: 6px 14px;
+  border-radius: 8px;
   font-size: 0.72rem;
   font-weight: 700;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.status-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .status-active {
-  background: var(--success-light);
-  color: var(--success);
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #d1fae5;
 }
 
 .status-pending {
-  background: var(--warning-light);
-  color: var(--warning);
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fef3c7;
 }
 
 .status-inactive {
-  background: #f1f5f9;
-  color: var(--text-secondary);
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
 }
 
 .status-credit {
-  background: var(--success-light);
-  color: var(--success);
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #d1fae5;
 }
 
 .status-debit {
-  background: var(--danger-light);
-  color: var(--danger);
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fee2e2;
 }
 
 .status-transfer {
-  background: var(--primary-light);
-  color: var(--primary);
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #dbeafe;
 }
 
 /* Status text pill (used in Masters toggle) */
@@ -1582,16 +1651,24 @@ a {
 
 .dash-qa-btn:hover {
   filter: brightness(1.08);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
 }
 
 .dash-qa-btn:active {
   filter: brightness(0.96);
 }
 
-.qa-income   { background: linear-gradient(135deg, #10b981, #059669); }
-.qa-expense  { background: linear-gradient(135deg, #ef4444, #dc2626); }
-.qa-transfer { background: linear-gradient(135deg, #5c67f2, #4a55e0); }
+.qa-income {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.qa-expense {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.qa-transfer {
+  background: linear-gradient(135deg, #5c67f2, #4a55e0);
+}
 
 .qa-icon {
   display: flex;
@@ -1599,7 +1676,7 @@ a {
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   font-size: 1.2rem;
   flex-shrink: 0;
@@ -1648,7 +1725,10 @@ a {
   white-space: nowrap;
 }
 
-.dash-shortcut i { font-size: 0.9rem; color: var(--primary); }
+.dash-shortcut i {
+  font-size: 0.9rem;
+  color: var(--primary);
+}
 
 .dash-shortcut:hover {
   background: var(--primary-light);
@@ -1712,7 +1792,9 @@ a {
     padding: 14px;
   }
 
-  .dash-qa-left { width: 100%; }
+  .dash-qa-left {
+    width: 100%;
+  }
 
   .dash-qa-btn {
     flex: 1;
@@ -1720,21 +1802,46 @@ a {
     padding: 8px 12px;
   }
 
-  .qa-icon { width: 30px; height: 30px; font-size: 1rem; }
-  .qa-text strong { font-size: 0.78rem; }
-  .qa-text small  { display: none; }
+  .qa-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
+  }
 
-  .dash-qa-right { width: 100%; }
+  .qa-text strong {
+    font-size: 0.78rem;
+  }
 
-  .dash-shortcut { flex: 1; justify-content: center; }
+  .qa-text small {
+    display: none;
+  }
 
-  .dash-pagesize-btn { height: 26px; min-width: 32px; font-size: 0.7rem; }
+  .dash-qa-right {
+    width: 100%;
+  }
+
+  .dash-shortcut {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .dash-pagesize-btn {
+    height: 26px;
+    min-width: 32px;
+    font-size: 0.7rem;
+  }
 }
 
 @media (max-width: 480px) {
-  .dash-qa-btn { min-width: 100%; }
+  .dash-qa-btn {
+    min-width: 100%;
+  }
 }
 
+/* ============================================================
+   MOBILE CARD TABLES (SM / MOBILE HANDSETS)
+   Transforms standard tables into modern stacked cards
+   ============================================================ */
 /* ============================================================
    MOBILE CARD TABLES (SM / MOBILE HANDSETS)
    Transforms standard tables into modern stacked cards
@@ -1743,28 +1850,44 @@ a {
   .table-responsive {
     border: none !important;
     background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
 
-  .custom-table, 
-  .transaction-table, 
-  .master-table, 
-  .users-table {
+  .custom-table,
+  .transaction-table,
+  .master-table,
+  .users-table,
+  .table-responsive table {
     display: block;
     width: 100%;
     background: transparent;
+    border: none !important;
   }
 
   .custom-table thead,
   .transaction-table thead,
   .master-table thead,
-  .users-table thead {
+  .users-table thead,
+  .table-responsive table thead {
     display: none;
   }
 
-  .custom-table tbody, .custom-table tr, .custom-table td,
-  .transaction-table tbody, .transaction-table tr, .transaction-table td,
-  .master-table tbody, .master-table tr, .master-table td,
-  .users-table tbody, .users-table tr, .users-table td {
+  .custom-table tbody,
+  .custom-table tr,
+  .custom-table td,
+  .transaction-table tbody,
+  .transaction-table tr,
+  .transaction-table td,
+  .master-table tbody,
+  .master-table tr,
+  .master-table td,
+  .users-table tbody,
+  .users-table tr,
+  .users-table td,
+  .table-responsive table tbody,
+  .table-responsive table tr,
+  .table-responsive table td {
     display: block;
     width: 100%;
   }
@@ -1772,19 +1895,31 @@ a {
   .custom-table tr,
   .transaction-table tr,
   .master-table tr,
-  .users-table tr {
-    background: #fff;
-    border: 1px solid var(--border-light);
-    border-radius: 12px;
+  .users-table tr,
+  .table-responsive table tbody tr {
+    background: #ffffff;
+    border: 1px solid #eef2f7;
+    border-radius: 18px;
     margin-bottom: 16px;
-    padding: 10px 14px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    transition: transform 0.2s;
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    position: relative;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .custom-table tr:active,
+  .transaction-table tr:active,
+  .master-table tr:active,
+  .users-table tr:active,
+  .table-responsive table tbody tr:active {
+    transform: scale(0.98);
+    background: #f8fafc;
   }
 
   /* Exclude table-row headers or empty states */
   .custom-table tr:has(th),
-  .custom-table tr.empty-row {
+  .custom-table tr.empty-row,
+  .table-responsive table tr:has(th) {
     background: transparent;
     border: none;
     box-shadow: none;
@@ -1794,45 +1929,114 @@ a {
   .custom-table td,
   .transaction-table td,
   .master-table td,
-  .users-table td {
+  .users-table td,
+  .table-responsive table td {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #f1f5f9;
-    padding: 10px 0;
-    text-align: right;
-    min-height: 44px;
+    flex-direction: column;
+    align-items: flex-start;
+    border-bottom: 1px solid #f8fafc;
+    padding: 12px 0;
+    text-align: left;
+    min-height: auto;
   }
 
   .custom-table td:last-child,
   .transaction-table td:last-child,
   .master-table td:last-child,
-  .users-table td:last-child {
+  .users-table td:last-child,
+  .table-responsive table td:last-child {
     border-bottom: none;
-    padding-bottom: 4px;
+    padding-bottom: 0;
   }
 
+  /* Label formatting — iOS Style */
   .custom-table td::before,
   .transaction-table td::before,
   .master-table td::before,
-  .users-table td::before {
+  .users-table td::before,
+  .table-responsive table td::before {
     content: attr(data-label);
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--text-muted);
+    font-size: 0.62rem;
+    font-weight: 800;
+    color: #94a3b8;
     text-transform: uppercase;
-    text-align: left;
-    margin-right: 15px;
-    flex-shrink: 0;
+    letter-spacing: 0.06em;
+    margin-bottom: 5px;
+    display: block;
+    opacity: 0.8;
   }
 
-  /* Specific fix for Actions buttons to flow correctly */
+  /* Value formatting */
+  .custom-table td>*,
+  .transaction-table td>*,
+  .master-table td>*,
+  .users-table td>*,
+  .table-responsive table td>* {
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    font-size: 0.92rem !important;
+    margin: 0 !important;
+  }
+
+  /* Specific handling for SR No (#) */
+  .custom-table td[data-label="#"],
+  .master-table td[data-label="#"] {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    border: none;
+    padding: 0;
+    width: auto;
+    z-index: 2;
+  }
+
+  .custom-table td[data-label="#"]::before,
+  .master-table td[data-label="#"]::before {
+    display: none;
+  }
+
+  .custom-table td[data-label="#"]>*,
+  .master-table td[data-label="#"]>* {
+    font-size: 0.72rem !important;
+    color: #cbd5e1 !important;
+    font-weight: 800 !important;
+  }
+
+  /* Actions buttons area — App-like Button Bar */
   .custom-table td[data-label="Actions"],
   .master-table td[data-label="Actions"],
-  .users-table td[data-label="Actions"] {
-    justify-content: space-between;
-    padding-top: 14px;
-    margin-top: 4px;
+  .users-table td[data-label="Actions"],
+  .transaction-table td[data-label="Actions"],
+  .table-responsive table td[data-label="Actions"] {
+    padding-top: 16px;
+    margin-top: 10px;
     border-top: 1px dashed #e2e8f0;
+    flex-direction: row !important;
+    justify-content: flex-end;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .custom-table td[data-label="Actions"]::before,
+  .master-table td[data-label="Actions"]::before,
+  .users-table td[data-label="Actions"]::before,
+  .transaction-table td[data-label="Actions"]::before,
+  .table-responsive table td[data-label="Actions"]::before {
+    margin-bottom: 0;
+    margin-right: auto;
+    align-self: center;
+    font-size: 0.68rem;
+    font-weight: 800;
+  }
+
+  .custom-table td[data-label="Actions"] .btn,
+  .master-table td[data-label="Actions"] .btn,
+  .users-table td[data-label="Actions"] .btn,
+  .transaction-table td[data-label="Actions"] .btn {
+    flex-grow: 1;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 0.75rem;
   }
 }

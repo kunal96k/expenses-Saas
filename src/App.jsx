@@ -59,40 +59,30 @@ function App() {
         dateFormat: 'DD-MM-YYYY',
         timeZone: 'Asia/Kolkata'
       },
-      financial: {
-        allowNegativeBalance: false,
-        enableCashAccounts: true,
-        openingBalanceBehavior: 'Manual'
-      },
-      transactions: {
-        autoSetCurrentDate: true,
-        allowBackdatedEntries: false,
-        requireReferenceNumber: false
-      },
+
       security: {
         sessionTimeoutMins: 30,
         passwordMinLength: 8,
         strongPasswordPolicy: true
       },
       system: {
-        enableAuditLogs: true,
         enableNotifications: true
       }
     },
     preferences: {
       ui: {
         theme: 'Light',
-        compactView: false,
-        tableDensity: 'Comfortable'
+        compactView: false
       },
       dashboard: {
-        defaultView: 'Company-wise',
         showCharts: true
       },
       reports: {
         defaultExportFormat: 'PDF',
-        includeReference: true,
-        includePaymentMode: true
+        autoEmailReports: true,
+        scheduleFrequency: 'Monthly',
+        scheduledDay: '1',
+        scheduledTime: '10:00'
       }
     }
   };
@@ -180,6 +170,7 @@ function App() {
         <Header
           activePage={activePage}
           toggleSidebar={toggleSidebar}
+          onPageChange={handlePageChange}
         />
 
         <main className="content-area flex-grow-1">

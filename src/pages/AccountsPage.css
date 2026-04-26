@@ -21,6 +21,57 @@
     border: 1px solid #e2e8f0;
 }
 
+/* --- Table Refinements --- */
+.table-responsive-wrapper {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.table-responsive-wrapper:hover {
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+}
+
+.custom-accounts-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.custom-accounts-table thead th {
+    background: #f8fafc;
+    padding: 14px 24px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.custom-accounts-table tbody td {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    transition: all 0.2s;
+}
+
+.row-clickable {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.row-clickable:hover {
+    background: #fcfcfd;
+}
+
+.row-clickable:hover td {
+    color: #0f172a;
+}
+
 /* Statement View Styling */
 .statement-view {
     background: #fff;
@@ -46,40 +97,45 @@
 }
 
 .table-statement thead th {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #475569;
-    padding: 0.85rem 0.9rem;
-    border-bottom: 1px solid #e2e8f0;
-    background: #ffffff;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    padding: 14px 16px;
+    border-bottom: 2px solid #f1f5f9;
+    background: #f8fafc;
 }
 
 .table-statement tbody td {
-    padding: 0.85rem 0.9rem;
+    padding: 16px;
     vertical-align: middle;
     border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    font-size: 0.875rem;
 }
 
 .table-statement tbody tr:nth-child(even) {
-    background: #fcfcfd;
+    background: #fafbfc;
 }
 
 .table-statement tbody tr.bg-light td {
-    background: #f8fafc !important;
+    background: #f1f5f9 !important;
     border-bottom: 1px solid #e2e8f0;
+    font-weight: 600;
 }
 
 .table-statement tbody td:last-child {
-    background: rgba(15, 23, 42, 0.03);
+    background: rgba(15, 23, 42, 0.02);
+    font-weight: 600;
 }
 
 .table-statement tbody tr:hover td:last-child {
-    background: rgba(92, 103, 242, 0.08);
+    background: rgba(92, 103, 242, 0.05);
 }
 
 .statement-balance-col {
-    background: rgba(15, 23, 42, 0.03);
+    background: rgba(15, 23, 42, 0.02);
 }
 
 .statement-closing-row td {
@@ -153,50 +209,102 @@
 }
 
 .statement-header {
-    background: linear-gradient(135deg, #5c67f2 0%, #4338ca 100%);
-    padding: 2.5rem;
-    border-radius: 1.25rem;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    padding: 3rem 2.5rem;
+    border-radius: 1.5rem;
     color: white;
-    box-shadow: 0 10px 25px rgba(92, 103, 242, 0.25);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+.statement-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(92, 103, 242, 0.15) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.statement-header .badge.bg-white {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #f8fafc !important;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+}
+
+.statement-header h3 {
+    font-size: 2rem;
+    letter-spacing: -0.02em;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .balance-info-card {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    padding: 1rem 1.5rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    min-width: 200px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    padding: 1.25rem 1.75rem;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-width: 240px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.balance-info-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-5px);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
 .balance-info-card.negative {
-    border-color: rgba(239, 68, 68, 0.5);
-    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.05);
 }
 
 .balance-info-card .label {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.5rem;
-    opacity: 0.8;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 700;
 }
 
 .balance-info-card .value {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: 800;
     margin: 0;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
 }
 
 /* Table Enhancements */
-.icon-box {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+.icon-box-glass {
+    width: 42px;
+    height: 42px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
+    font-size: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.icon-box-glass i {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.balance-info-card:hover .icon-box-glass {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.1);
 }
 
 .bg-primary-soft { background-color: rgba(92, 103, 242, 0.1) !important; }
@@ -260,24 +368,73 @@
     outline: none;
 }
 
+/* Account Mobile Cards */
+.account-mobile-card {
+    background: #fff;
+    border-radius: 1.25rem;
+    border: 1px solid #f1f5f9 !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.account-mobile-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.12) !important;
+    border-color: #e2e8f0 !important;
+}
+
+.account-icon-mobile {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.badge-subtle {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+}
+
+.type-bank {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.type-cash {
+    background: #fff7ed;
+    color: #ea580c;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 991px) {
     .accounts-container {
         padding: 1rem;
         padding-top: 1.25rem;
     }
 
+    .statement-view {
+        padding: 1rem;
+    }
+
     .statement-header {
         padding: 1.5rem;
+        border-radius: 1.25rem;
     }
     
     .balance-info-card {
         min-width: 100%;
+        padding: 1.25rem;
     }
 
     .statement-table-wrap {
@@ -288,45 +445,48 @@
         min-width: 980px;
     }
 
-    .table-statement thead th {
-        padding: 0.7rem 0.75rem;
-    }
-
-    .table-statement tbody td {
-        padding: 0.75rem 0.75rem;
-    }
-
     .statement-table-scroll {
         max-height: 420px;
     }
 
     .statement-cards-scroll {
         max-height: 420px;
+    }
+
+    /* Fix for tall buttons on mobile */
+    .btn-primary-custom, 
+    .btn-light.border,
+    .btn-secondary-custom {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+        height: auto;
+        min-height: 42px;
     }
 }
 
 @media (max-width: 576px) {
     .statement-view {
-        padding: 1rem;
-        border-radius: 1rem;
+        padding: 0.75rem;
     }
 
     .statement-header {
         padding: 1.25rem;
-        border-radius: 1rem;
     }
 
     .statement-table-scroll {
         max-height: 380px;
+    }
+
+    .account-filter-card {
         border-radius: 0.75rem;
     }
 
-    .statement-cards-scroll {
-        max-height: 420px;
+    .account-filter-card .card-body {
+        padding: 1rem !important;
     }
 
-    .table-statement {
-        min-width: 920px;
+    .page-title {
+        font-size: 1.25rem;
     }
 }
 

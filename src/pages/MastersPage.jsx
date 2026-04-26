@@ -289,133 +289,167 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                     <span className="master-toolbar-info">{currentData.length} record{currentData.length !== 1 ? 's' : ''} found</span>
                 </div>
 
-                {/* Table */}
-                <div className="table-responsive">
-                    <table className="master-table">
-                        <thead>
-                            <tr>
-                                <th className="col-sr">#</th>
-
-                                {/* Company Master Columns */}
-                                {masterType === 'company' && <>
-                                    <th>Code</th>
-                                    <th>Company Name</th>
-                                    <th>Type</th>
-                                    <th>GST Number</th>
-                                    <th>PAN Number</th>
-                                    <th>Currency</th>
-                                    <th>Contact</th>
-                                    <th>Address</th>
-                                </>}
-
-                                {/* Bank Master Columns */}
-                                {masterType === 'bank' && <>
-                                    <th>Bank Name</th>
-                                    <th>IFSC Code</th>
-                                    <th>Branch</th>
-                                </>}
-
-                                {/* Payment Mode Columns */}
-                                {masterType === 'payment-mode' && <>
-                                    <th>Mode Name</th>
-                                    <th>Description</th>
-                                </>}
-
-                                {/* Category Columns */}
-                                {masterType === 'category' && <>
-                                    <th>Category Name</th>
-                                    <th>Type</th>
-                                </>}
-
-                                <th className="text-center">Status</th>
-                                <th className="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {paginatedData.length === 0 ? (
-                                <tr className="empty-table-row">
-                                    <td colSpan={10}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                                            <i className="bi bi-inbox" style={{ fontSize: '2rem' }}></i>
-                                            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>No records found</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : paginatedData.map((item, idx) => (
-                                <tr key={item.id} className={item.status === 'Inactive' ? 'row-inactive' : ''}>
-                                    {/* SR No */}
-                                    <td data-label="#" className="col-sr">{srBase + idx + 1}</td>
-
-                                    {/* Company Columns */}
+                {/* ── Desktop Table (hidden on mobile) ── */}
+                <div className="master-desktop-table d-none d-md-block">
+                    <div className="table-responsive">
+                        <table className="master-table">
+                            <thead>
+                                <tr>
+                                    <th className="col-sr">#</th>
                                     {masterType === 'company' && <>
-                                        <td data-label="Code"><code className="fw-bold" style={{ color: '#5c67f2', background: '#eef0fd', padding: '2px 7px', borderRadius: '5px', fontSize: '0.78rem' }}>{item.code}</code></td>
-                                        <td data-label="Company Name" className="fw-bold" style={{ color: '#0f172a' }}>{item.name}</td>
-                                        <td data-label="Type"><span className="badge bg-light text-dark border" style={{ fontSize: '0.72rem', fontWeight: 600 }}>{item.type}</span></td>
-                                        <td data-label="GST Number"><code style={{ fontSize: '0.78rem', color: '#475569' }}>{item.gst || '—'}</code></td>
-                                        <td data-label="PAN Number"><code style={{ fontSize: '0.78rem', color: '#475569' }}>{item.pan || '—'}</code></td>
-                                        <td data-label="Currency"><span style={{ fontSize: '0.8rem', color: '#64748b' }}>{item.currency || '—'}</span></td>
-                                        <td data-label="Contact">
-                                            {item.phone && <div className="small"><i className="bi bi-telephone me-1" style={{ color: '#94a3b8' }}></i>{item.phone}</div>}
-                                            {item.email && <div className="small text-muted"><i className="bi bi-envelope me-1" style={{ color: '#94a3b8' }}></i>{item.email}</div>}
-                                            {!item.phone && !item.email && <span className="text-muted">—</span>}
-                                        </td>
-                                        <td data-label="Address" className="small text-muted" style={{ maxWidth: '160px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.address}>{item.address || '—'}</td>
+                                        <th>Code</th>
+                                        <th>Company Name</th>
+                                        <th>Type</th>
+                                        <th>GST Number</th>
+                                        <th>PAN Number</th>
+                                        <th>Currency</th>
+                                        <th>Contact</th>
+                                        <th>Address</th>
                                     </>}
-
-                                    {/* Bank Columns */}
                                     {masterType === 'bank' && <>
-                                        <td data-label="Bank Name" className="fw-bold">{item.name}</td>
-                                        <td data-label="IFSC Code"><code style={{ fontSize: '0.78rem', color: '#5c67f2', background: '#eef0fd', padding: '2px 7px', borderRadius: '5px' }}>{item.ifsc || '—'}</code></td>
-                                        <td data-label="Branch" className="small">{item.branch || '—'}</td>
+                                        <th>Bank Name</th>
+                                        <th>IFSC Code</th>
+                                        <th>Branch</th>
                                     </>}
-
-                                    {/* Payment Mode Columns */}
                                     {masterType === 'payment-mode' && <>
-                                        <td data-label="Mode Name" className="fw-bold">{item.name}</td>
-                                        <td data-label="Description" className="small text-muted">{item.description || '—'}</td>
+                                        <th>Mode Name</th>
+                                        <th>Description</th>
                                     </>}
-
-                                    {/* Category Columns */}
                                     {masterType === 'category' && <>
-                                        <td data-label="Category Name" className="fw-bold">{item.name}</td>
-                                        <td data-label="Type">
-                                            <span className={`status-badge ${item.type === 'Income' ? 'status-credit' : 'status-debit'}`}>
-                                                {item.type}
-                                            </span>
-                                        </td>
+                                        <th>Category Name</th>
+                                        <th>Type</th>
                                     </>}
-
-                                    {/* Status Column */}
-                                    <td data-label="Status" className="text-center">
-                                        <div className="status-toggle-cell">
-                                            <div className="form-check form-switch d-inline-block mb-0">
-                                                <input
-                                                    className="form-check-input"
-                                                    type="checkbox"
-                                                    checked={item.status === 'Active'}
-                                                    onChange={() => handleToggleStatus(item.id)}
-                                                    style={{ cursor: 'pointer' }}
-                                                />
-                                            </div>
-                                            <div className={`status-text-pill ${item.status.toLowerCase()}`}>{item.status}</div>
-                                        </div>
-                                    </td>
-
-                                    {/* Actions Column */}
-                                    <td data-label="Actions">
-                                        <div className="action-btns">
-                                            <button className="btn-icon" onClick={() => openModal(item)} title="Edit">
-                                                <i className="bi bi-pencil"></i>
-                                            </button>
-                                            <button className="btn-icon text-danger" onClick={() => handleDelete(item.id)} title="Delete">
-                                                <i className="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
+                                    <th className="text-center">Status</th>
+                                    <th className="text-end">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {paginatedData.length === 0 ? (
+                                    <tr className="empty-table-row">
+                                        <td colSpan={10}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
+                                                <i className="bi bi-inbox" style={{ fontSize: '2rem' }}></i>
+                                                <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>No records found</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : paginatedData.map((item, idx) => (
+                                    <tr key={item.id} className={item.status === 'Inactive' ? 'row-inactive' : ''}>
+                                        <td className="col-sr">{srBase + idx + 1}</td>
+                                        {masterType === 'company' && <>
+                                            <td><code className="master-code-badge">{item.code}</code></td>
+                                            <td className="fw-semibold" style={{ color: '#0f172a' }}>{item.name}</td>
+                                            <td><span className="master-type-tag">{item.type}</span></td>
+                                            <td><code className="master-mono">{item.gst || '—'}</code></td>
+                                            <td><code className="master-mono">{item.pan || '—'}</code></td>
+                                            <td className="text-muted small">{item.currency || '—'}</td>
+                                            <td>
+                                                {item.phone && <div className="small"><i className="bi bi-telephone me-1 text-muted"></i>{item.phone}</div>}
+                                                {item.email && <div className="small text-muted"><i className="bi bi-envelope me-1"></i>{item.email}</div>}
+                                                {!item.phone && !item.email && <span className="text-muted">—</span>}
+                                            </td>
+                                            <td className="small text-muted" style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.address}>{item.address || '—'}</td>
+                                        </>}
+                                        {masterType === 'bank' && <>
+                                            <td className="fw-semibold">{item.name}</td>
+                                            <td><code className="master-code-badge">{item.ifsc || '—'}</code></td>
+                                            <td className="small text-muted">{item.branch || '—'}</td>
+                                        </>}
+                                        {masterType === 'payment-mode' && <>
+                                            <td className="fw-semibold">{item.name}</td>
+                                            <td className="small text-muted">{item.description || '—'}</td>
+                                        </>}
+                                        {masterType === 'category' && <>
+                                            <td className="fw-semibold">{item.name}</td>
+                                            <td><span className={`status-badge ${item.type === 'Income' ? 'status-credit' : 'status-debit'}`}>{item.type}</span></td>
+                                        </>}
+                                        <td className="text-center">
+                                            <div className="status-toggle-cell">
+                                                <div className="form-check form-switch d-inline-block mb-0">
+                                                    <input className="form-check-input" type="checkbox" checked={item.status === 'Active'} onChange={() => handleToggleStatus(item.id)} style={{ cursor: 'pointer' }} />
+                                                </div>
+                                                <div className={`status-text-pill ${item.status.toLowerCase()}`}>{item.status}</div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="action-btns">
+                                                <button className="btn-icon" onClick={() => openModal(item)} title="Edit"><i className="bi bi-pencil"></i></button>
+                                                <button className="btn-icon text-danger" onClick={() => handleDelete(item.id)} title="Delete"><i className="bi bi-trash"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* ── Mobile Cards (hidden on desktop) ── */}
+                <div className="master-mobile-cards d-block d-md-none">
+                    {paginatedData.length === 0 ? (
+                        <div className="master-empty-mobile">
+                            <i className="bi bi-inbox"></i>
+                            <span>No records found</span>
+                        </div>
+                    ) : paginatedData.map((item, idx) => (
+                        <div key={item.id} className={`master-mobile-card ${item.status === 'Inactive' ? 'card-inactive' : ''}`}>
+                            {/* Card Header */}
+                            <div className="mcard-header">
+                                <div className="mcard-index">{srBase + idx + 1}</div>
+                                <div className="mcard-title-block">
+                                    {/* Title varies by type */}
+                                    {masterType === 'company' && <><span className="mcard-code">{item.code}</span><span className="mcard-name">{item.name}</span></>}
+                                    {masterType === 'bank' && <span className="mcard-name">{item.name}</span>}
+                                    {masterType === 'payment-mode' && <span className="mcard-name">{item.name}</span>}
+                                    {masterType === 'category' && <span className="mcard-name">{item.name}</span>}
+                                </div>
+                                <div className={`mcard-status-dot ${item.status === 'Active' ? 'dot-active' : 'dot-inactive'}`} title={item.status}></div>
+                            </div>
+
+                            {/* Card Body — Fields */}
+                            <div className="mcard-body">
+                                {masterType === 'company' && <>
+                                    <div className="mcard-row"><span className="mcard-label">Type</span><span className="mcard-value"><span className="master-type-tag">{item.type}</span></span></div>
+                                    <div className="mcard-row"><span className="mcard-label">GST</span><span className="mcard-value"><code className="master-mono">{item.gst || '—'}</code></span></div>
+                                    <div className="mcard-row"><span className="mcard-label">PAN</span><span className="mcard-value"><code className="master-mono">{item.pan || '—'}</code></span></div>
+                                    {item.phone && <div className="mcard-row"><span className="mcard-label">Phone</span><span className="mcard-value">{item.phone}</span></div>}
+                                    {item.email && <div className="mcard-row"><span className="mcard-label">Email</span><span className="mcard-value">{item.email}</span></div>}
+                                    {item.address && <div className="mcard-row"><span className="mcard-label">Address</span><span className="mcard-value mcard-value-truncate">{item.address}</span></div>}
+                                </>}
+                                {masterType === 'bank' && <>
+                                    <div className="mcard-row"><span className="mcard-label">IFSC</span><span className="mcard-value"><code className="master-code-badge">{item.ifsc || '—'}</code></span></div>
+                                    <div className="mcard-row"><span className="mcard-label">Branch</span><span className="mcard-value">{item.branch || '—'}</span></div>
+                                </>}
+                                {masterType === 'payment-mode' && <>
+                                    <div className="mcard-row"><span className="mcard-label">Description</span><span className="mcard-value">{item.description || '—'}</span></div>
+                                </>}
+                                {masterType === 'category' && <>
+                                    <div className="mcard-row"><span className="mcard-label">Type</span><span className="mcard-value"><span className={`status-badge ${item.type === 'Income' ? 'status-credit' : 'status-debit'}`}>{item.type}</span></span></div>
+                                </>}
+                            </div>
+
+                            {/* Card Footer — Status + Actions */}
+                            <div className="mcard-footer">
+                                <div className="mcard-toggle-row">
+                                    <span className="mcard-label">Status</span>
+                                    <div className="d-flex align-items-center gap-2">
+                                        <div className="form-check form-switch mb-0">
+                                            <input className="form-check-input" type="checkbox" checked={item.status === 'Active'} onChange={() => handleToggleStatus(item.id)} style={{ cursor: 'pointer' }} />
+                                        </div>
+                                        <span className={`status-text-pill ${item.status.toLowerCase()}`}>{item.status}</span>
+                                    </div>
+                                </div>
+                                <div className="mcard-actions">
+                                    <button className="mcard-btn mcard-btn-edit" onClick={() => openModal(item)}>
+                                        <i className="bi bi-pencil me-1"></i>Edit
+                                    </button>
+                                    <button className="mcard-btn mcard-btn-delete" onClick={() => handleDelete(item.id)}>
+                                        <i className="bi bi-trash me-1"></i>Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Pagination */}
