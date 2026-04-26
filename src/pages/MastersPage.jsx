@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import Pagination from '../components/Pagination';
+import { apiService } from '../services/api';
 import './MastersPage.css';
 
 const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accounts }) => {
     const masterType = activePage.replace('-master', '');
+    const [isLoading, setIsLoading] = useState(false);
 
     const masterTitles = {
         'company': 'Company Master',
@@ -16,20 +18,54 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
     const [searchQuery, setSearchQuery] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [showCredentialsModal, setShowCredentialsModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
     const [formValues, setFormValues] = useState(null);
+    const [detailsFormValues, setDetailsFormValues] = useState(null);
+    const [credentialsFormValues, setCredentialsFormValues] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    const getApiEndpoint = (type) => {
+
+        if (type === 'payment-mode') return '/payment-modes';
+        if (type === 'category') return '/categories';
+        if (type === 'company') return '/companies';
+        if (type === 'bank') return '/banks';
+        return `/${type}s`;
+    };
+
+    const fetchData = async () => {
+        const endpoint = getApiEndpoint(masterType);
+        setIsLoading(true);
+
+        setIsLoading(true);
+        try {
+            // Fetching all for now to keep existing frontend logic working
+            // In a real scenario, we'd use the paginated endpoint /api/xxx?page=0&size=10
+            const response = await apiService.get(`${endpoint}/all`);
+            const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
+            setMastersData(prev => ({ ...prev, [dataKey]: response }));
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            Swal.fire('Error', `Failed to load ${masterTitles[masterType]}. ${error.message}`, 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!showModal) setFormValues(null);
     }, [showModal]);
 
-    // Reset page on master type change
+    // Reset page on master type change and fetch data
     useEffect(() => {
         setCurrentPage(1);
         setSearchQuery('');
+        fetchData();
     }, [masterType]);
+
 
     const isCompanyLinked = (companyId) => (accounts || []).some(a => a.companyId === companyId);
     const isBankLinked    = (bankId)    => (accounts || []).some(a => a.bankId    === bankId);
@@ -47,6 +83,9 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
             (item.ifsc        && item.ifsc.toLowerCase().includes(q)) ||
             (item.branch      && item.branch.toLowerCase().includes(q)) ||
             (item.description && item.description.toLowerCase().includes(q))
+            || (item.empCode && item.empCode.toLowerCase().includes(q))
+            || (item.email && item.email.toLowerCase().includes(q))
+            || (item.username && item.username.toLowerCase().includes(q))
         );
     }, [mastersData, masterType, searchQuery]);
 
@@ -57,15 +96,18 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         return currentData.slice(start, start + itemsPerPage);
     }, [currentData, currentPage, itemsPerPage]);
 
-    const handleToggleStatus = (id) => {
-        const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
-        setMastersData(prev => ({
-            ...prev,
-            [dataKey]: prev[dataKey].map(item =>
-                item.id === id ? { ...item, status: item.status === 'Active' ? 'Inactive' : 'Active' } : item
-            )
-        }));
+    const handleToggleStatus = async (id) => {
+        const endpoint = getApiEndpoint(masterType);
+        try {
+            await apiService.patch(`${endpoint}/${id}/toggle-status`);
+            await fetchData(); // Refresh data from server
+            Swal.fire({ icon: 'success', title: 'Updated', text: 'Status updated successfully.', timer: 1000, showConfirmButton: false });
+        } catch (error) {
+            console.error('Error toggling status:', error);
+            Swal.fire('Error', `Failed to update status. ${error.message}`, 'error');
+        }
     };
+
 
     const handleDelete = (id) => {
         const dataKey  = masterType === 'payment-mode' ? 'paymentMode' : masterType;
@@ -81,19 +123,165 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
             confirmButtonColor: '#ef4444',
             confirmButtonText: isLinked ? 'OK' : 'Yes, Delete',
             cancelButtonText: 'Cancel'
-        }).then(result => {
+        }).then(async (result) => {
             if (result.isConfirmed && !isLinked) {
-                setMastersData(prev => ({
-                    ...prev,
-                    [dataKey]: prev[dataKey].filter(item => item.id !== id)
-                }));
-                Swal.fire({ icon: 'success', title: 'Deleted!', text: 'Record removed.', timer: 1500, showConfirmButton: false });
+                try {
+                    const endpoint = getApiEndpoint(masterType);
+                    await apiService.delete(`${endpoint}/${id}`);
+                    await fetchData();
+                    Swal.fire({ icon: 'success', title: 'Deleted!', text: 'Record removed.', timer: 1500, showConfirmButton: false });
+                } catch (error) {
+                    console.error('Error deleting record:', error);
+                    Swal.fire('Error', `Failed to delete record. ${error.message}`, 'error');
+                }
             }
         });
     };
 
+    const handleResetPassword = (id) => {
+        Swal.fire({
+            title: 'Reset Password',
+            html: `<input id="swal-input1" class="swal2-input" type="password" placeholder="New password">` +
+                  `<label style="font-weight:600;margin-top:8px;display:block"><input id="swal-send-email" type="checkbox"> Send password to user's email</label>`,
+            focusConfirm: false,
+            preConfirm: () => {
+                const newPassword = document.getElementById('swal-input1').value;
+                const sendEmail = document.getElementById('swal-send-email').checked;
+                if (!newPassword || newPassword.length < 6) {
+                    Swal.showValidationMessage('Enter a password of at least 6 characters');
+                    return;
+                }
+                return { newPassword, sendEmail };
+            }
+        }).then(async (res) => {
+            if (res.isConfirmed && res.value) {
+                try {
+                    const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
+                    await apiService.patch(`/employees/${id}/reset-password`, { newPassword: res.value.newPassword, sendEmail: res.value.sendEmail });
+                    Swal.fire({ icon: 'success', title: 'Password reset', timer: 1200, showConfirmButton: false });
+                    await fetchData();
+                } catch (err) {
+                    const errMsg = err.errors ? Object.values(err.errors).join('\n') : err.message;
+                    Swal.fire('Error', errMsg, 'error');
+                }
+            }
+        });
+    };
+
+    const handleResetUsername = (id) => {
+        Swal.fire({
+            title: 'Reset Username',
+            input: 'text',
+            inputPlaceholder: 'New username',
+            inputValidator: (value) => {
+                if (!value || value.trim().length < 3) return 'Enter a username (min 3 chars)';
+                return null;
+            },
+            showCancelButton: true,
+            inputAttributes: { autocapitalize: 'off' }
+        }).then(async (res) => {
+            if (res.isConfirmed) {
+                const sendEmail = await Swal.fire({ title: 'Send email with new username?', showCancelButton: true, confirmButtonText: 'Yes', cancelButtonText: 'No' });
+                try {
+                    const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
+                    await apiService.patch(`/employees/${id}/reset-username`, { newUsername: res.value, sendEmail: sendEmail.isConfirmed });
+                    Swal.fire({ icon: 'success', title: 'Username updated', timer: 1200, showConfirmButton: false });
+                    await fetchData();
+                } catch (err) {
+                    const errMsg = err.errors ? Object.values(err.errors).join('\n') : err.message;
+                    Swal.fire('Error', errMsg, 'error');
+                }
+            }
+        });
+    };
+
+    const handleEditDetails = (item) => {
+        setSelectedItem(item);
+        setDetailsFormValues({
+            name: item.name || '',
+            email: item.email || '',
+            phone: item.phone || '',
+            designation: item.designation || '',
+            department: item.department || '',
+            status: item.status || 'Active'
+        });
+        setShowDetailsModal(true);
+    };
+
+    const handleUpdateDetails = async () => {
+        if (!detailsFormValues.name || !detailsFormValues.email) {
+            Swal.fire('Validation', 'Name and email are required', 'error');
+            return;
+        }
+        try {
+            const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
+            await apiService.put(`/employees/${selectedItem.id}/details`, detailsFormValues);
+            Swal.fire({ icon: 'success', title: 'Details updated', timer: 1200, showConfirmButton: false });
+            setShowDetailsModal(false);
+            await fetchData();
+        } catch (err) {
+            const errMsg = err.errors ? Object.values(err.errors).join('\n') : err.message;
+            Swal.fire('Error', errMsg, 'error');
+        }
+    };
+
+    const handleEditCredentials = (item) => {
+        setSelectedItem(item);
+        setCredentialsFormValues({
+            username: item.username || '',
+            password: '',
+            sendEmail: false
+        });
+        setShowCredentialsModal(true);
+    };
+
+    const handleUpdateCredentials = async () => {
+        if (!credentialsFormValues.username && !credentialsFormValues.password) {
+            Swal.fire('Validation', 'Enter at least username or password to update', 'error');
+            return;
+        }
+        if (credentialsFormValues.username && credentialsFormValues.username.length < 3) {
+            Swal.fire('Validation', 'Username must be at least 3 characters', 'error');
+            return;
+        }
+        if (credentialsFormValues.password && credentialsFormValues.password.length < 6) {
+            Swal.fire('Validation', 'Password must be at least 6 characters', 'error');
+            return;
+        }
+        try {
+            const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
+            await apiService.patch(`/employees/${selectedItem.id}/credentials`, {
+                username: credentialsFormValues.username,
+                password: credentialsFormValues.password,
+                sendEmail: credentialsFormValues.sendEmail
+            });
+            Swal.fire({ icon: 'success', title: 'Credentials updated', timer: 1200, showConfirmButton: false });
+            setShowCredentialsModal(false);
+            await fetchData();
+        } catch (err) {
+            const errMsg = err.errors ? Object.values(err.errors).join('\n') : err.message;
+            Swal.fire('Error', errMsg, 'error');
+        }
+    };
+
+
     const openModal = (item = null) => {
         setSelectedItem(item);
+        if (masterType === 'employee') {
+            setFormValues({
+                empCode:     item?.empCode     || '',
+                name:        item?.name        || '',
+                email:       item?.email       || '',
+                phone:       item?.phone       || '',
+                designation: item?.designation || '',
+                department:  item?.department  || '',
+                status:      item?.status      || 'Active',
+                username:    item?.username    || '',
+                password:    '',
+                confirmPassword: '',
+                sendCredentials: false
+            });
+        }
         if (masterType === 'company') {
             setFormValues({
                 code:     item?.code     || '',
@@ -130,12 +318,32 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         setShowModal(true);
     };
 
-    const handleSave = () => {
-        const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
+    const handleApiAction = async (action, successMsg) => {
+        try {
+            await action();
+            await fetchData();
+            Swal.fire({ icon: 'success', title: 'Success', text: successMsg, timer: 1500, showConfirmButton: false });
+            setShowModal(false);
+            setSelectedItem(null);
+        } catch (error) {
+            console.error('API Error:', error);
+            const errorMsg = error.errors 
+                ? Object.values(error.errors).map(msg => `• ${msg}`).join('<br/>') 
+                : error.message;
+            
+            Swal.fire({
+                title: 'Validation Error',
+                html: `<div class="text-start">${errorMsg}</div>`,
+                icon: 'error'
+            });
+        }
+    };
 
-        // --- Company ---
+    const handleSave = async () => {
+        const endpoint = getApiEndpoint(masterType);
+        
         if (masterType === 'company') {
-            const next = {
+            const payload = {
                 code:     (formValues?.code     || '').trim().toUpperCase(),
                 name:     (formValues?.name     || '').trim(),
                 type:     formValues?.type     || 'Pvt Ltd',
@@ -148,120 +356,179 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                 status:   formValues?.status   || 'Active'
             };
 
-            if (!next.code) { Swal.fire('Validation Error', 'Company Code is required.', 'error'); return; }
-            if (!next.name) { Swal.fire('Validation Error', 'Company Name is required.', 'error'); return; }
-
-            if (next.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(next.gst)) {
-                Swal.fire('Validation Error', 'GST Number format is invalid.', 'error'); return;
-            }
-            if (next.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(next.pan)) {
-                Swal.fire('Validation Error', 'PAN Number format is invalid.', 'error'); return;
-            }
-
-            const existing   = mastersData[dataKey] || [];
-            const selectedId = selectedItem?.id;
-            if (existing.some(c => c.id !== selectedId && (c.code || '').toUpperCase() === next.code)) {
-                Swal.fire('Duplicate', 'Company Code must be unique.', 'error'); return;
-            }
-            if (existing.some(c => c.id !== selectedId && (c.name || '').toLowerCase() === next.name.toLowerCase())) {
-                Swal.fire('Duplicate', 'Company Name must be unique.', 'error'); return;
-            }
-
-            if (selectedItem) {
-                setMastersData(prev => ({ ...prev, [dataKey]: prev[dataKey].map(c => c.id === selectedItem.id ? { ...c, ...next } : c) }));
-                Swal.fire({ icon: 'success', title: 'Updated', text: 'Company record updated.', timer: 1500, showConfirmButton: false });
-            } else {
-                const nextId = existing.length ? Math.max(...existing.map(x => x.id || 0)) + 1 : 1;
-                setMastersData(prev => ({ ...prev, [dataKey]: [{ id: nextId, ...next }, ...prev[dataKey]] }));
-                Swal.fire({ icon: 'success', title: 'Saved', text: 'Company record added.', timer: 1500, showConfirmButton: false });
-            }
-            setShowModal(false); setSelectedItem(null); return;
+            const action = selectedItem 
+                ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
+                : () => apiService.post(endpoint, payload);
+            
+            await handleApiAction(action, selectedItem ? 'Company updated.' : 'Company added.');
+            return;
         }
 
-        // --- Bank ---
         if (masterType === 'bank') {
-            const next = {
+            const payload = {
                 name:   (formValues?.name   || '').trim(),
                 ifsc:   (formValues?.ifsc   || '').trim().toUpperCase(),
                 branch: (formValues?.branch || '').trim(),
                 status: formValues?.status || 'Active'
             };
 
-            if (!next.name) { Swal.fire('Validation Error', 'Bank Name is required.', 'error'); return; }
-            if (next.ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(next.ifsc)) {
-                Swal.fire('Validation Error', 'IFSC Code is invalid. Expected format: HDFC0XXXXXX', 'error'); return;
-            }
-
-            const existing   = mastersData[dataKey] || [];
-            const selectedId = selectedItem?.id;
-            if (existing.some(b => b.id !== selectedId && (b.name || '').toLowerCase() === next.name.toLowerCase())) {
-                Swal.fire('Duplicate', 'Bank Name must be unique.', 'error'); return;
-            }
-
-            if (selectedItem) {
-                setMastersData(prev => ({ ...prev, [dataKey]: prev[dataKey].map(b => b.id === selectedItem.id ? { ...b, ...next } : b) }));
-                Swal.fire({ icon: 'success', title: 'Updated', text: 'Bank record updated.', timer: 1500, showConfirmButton: false });
-            } else {
-                const nextId = existing.length ? Math.max(...existing.map(x => x.id || 0)) + 1 : 1;
-                setMastersData(prev => ({ ...prev, [dataKey]: [{ id: nextId, ...next }, ...prev[dataKey]] }));
-                Swal.fire({ icon: 'success', title: 'Saved', text: 'Bank record added.', timer: 1500, showConfirmButton: false });
-            }
-            setShowModal(false); setSelectedItem(null); return;
+            const action = selectedItem 
+                ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
+                : () => apiService.post(endpoint, payload);
+            
+            await handleApiAction(action, selectedItem ? 'Bank updated.' : 'Bank added.');
+            return;
         }
 
-        // --- Payment Mode ---
-        if (masterType === 'payment-mode') {
-            const next = {
-                name:        (formValues?.name        || '').trim(),
-                description: (formValues?.description || '').trim(),
-                status:      formValues?.status || 'Active'
-            };
-
-            if (!next.name) { Swal.fire('Validation Error', 'Payment Mode Name is required.', 'error'); return; }
-
-            if (selectedItem) {
-                setMastersData(prev => ({ ...prev, [dataKey]: prev[dataKey].map(p => p.id === selectedItem.id ? { ...p, ...next } : p) }));
-                Swal.fire({ icon: 'success', title: 'Updated', text: 'Payment Mode updated.', timer: 1500, showConfirmButton: false });
-            } else {
-                const existing = mastersData[dataKey] || [];
-                const nextId   = existing.length ? Math.max(...existing.map(x => x.id || 0)) + 1 : 1;
-                setMastersData(prev => ({ ...prev, [dataKey]: [{ id: nextId, ...next }, ...prev[dataKey]] }));
-                Swal.fire({ icon: 'success', title: 'Saved', text: 'Payment Mode added.', timer: 1500, showConfirmButton: false });
-            }
-            setShowModal(false); setSelectedItem(null); return;
-        }
-
-        // --- Category ---
         if (masterType === 'category') {
-            const next = {
+            const payload = {
                 name:   (formValues?.name   || '').trim(),
                 type:   formValues?.type   || 'Expense',
                 status: formValues?.status || 'Active'
             };
 
-            if (!next.name) { Swal.fire('Validation Error', 'Category Name is required.', 'error'); return; }
-
-            if (selectedItem) {
-                setMastersData(prev => ({ ...prev, [dataKey]: prev[dataKey].map(c => c.id === selectedItem.id ? { ...c, ...next } : c) }));
-                Swal.fire({ icon: 'success', title: 'Updated', text: 'Category updated.', timer: 1500, showConfirmButton: false });
-            } else {
-                const existing = mastersData[dataKey] || [];
-                const nextId   = existing.length ? Math.max(...existing.map(x => x.id || 0)) + 1 : 1;
-                setMastersData(prev => ({ ...prev, [dataKey]: [{ id: nextId, ...next }, ...prev[dataKey]] }));
-                Swal.fire({ icon: 'success', title: 'Saved', text: 'Category added.', timer: 1500, showConfirmButton: false });
-            }
-            setShowModal(false); setSelectedItem(null); return;
+            const action = selectedItem 
+                ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
+                : () => apiService.post(endpoint, payload);
+            
+            await handleApiAction(action, selectedItem ? 'Category updated.' : 'Category added.');
+            return;
         }
 
-        setShowModal(false);
+        if (masterType === 'payment-mode') {
+            const payload = {
+                name:        (formValues?.name        || '').trim(),
+                description: (formValues?.description || '').trim(),
+                status:      formValues?.status || 'Active'
+            };
+
+            const action = selectedItem 
+                ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
+                : () => apiService.post(endpoint, payload);
+            
+            await handleApiAction(action, selectedItem ? 'Payment Mode updated.' : 'Payment Mode added.');
+            return;
+        }
+
+        if (masterType === 'employee') {
+            const payload = {
+                empCode: (formValues?.empCode || '').trim(),
+                name:    (formValues?.name || '').trim(),
+                email:   (formValues?.email || '').trim(),
+                phone:   (formValues?.phone || '').trim(),
+                designation: (formValues?.designation || '').trim(),
+                department:  (formValues?.department || '').trim(),
+                status: formValues?.status || 'Active',
+                username: formValues?.username || undefined,
+                password: formValues?.password || undefined,
+                sendCredentials: formValues?.sendCredentials || false
+            };
+
+            if (!payload.empCode || !payload.name) {
+                Swal.fire('Validation', 'Employee code and name are required', 'error');
+                return;
+            }
+
+            if (payload.password && payload.password !== (formValues?.confirmPassword || '')) {
+                Swal.fire('Validation', 'Passwords do not match', 'error');
+                return;
+            }
+
+            if (payload.password && payload.password.length < 6) {
+                Swal.fire('Validation', 'Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            const action = selectedItem
+                ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
+                : () => apiService.post(endpoint, payload);
+
+            await handleApiAction(action, selectedItem ? 'Employee updated.' : 'Employee added.');
+            return;
+        }
+
     };
+
 
     // ─── sr no base for current pagination page ───
     const srBase = (currentPage - 1) * itemsPerPage;
 
     return (
         <div className="master-container">
+            {/* Guide Note for Category Master */}
+            {masterType === 'category' && (
+                <div className="alert alert-info border-0 shadow-sm mb-4 fade-in" style={{ borderRadius: '12px', background: 'linear-gradient(to right, #f0f9ff, #e0f2fe)', padding: '16px 20px' }}>
+                    <div className="d-flex align-items-center gap-3">
+                        <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+                            <i className="bi bi-info-circle-fill" style={{ fontSize: '1.2rem' }}></i>
+                        </div>
+                        <div>
+                            <h6 className="mb-1 fw-bold text-primary">Master Category Guide</h6>
+                            <p className="mb-0 small text-muted">
+                                Categories help you organize your cash flow. Define <strong>Income</strong> categories for revenue sources and <strong>Expense</strong> categories for spending. 
+                                These categories will be used across the system to classify all financial transactions.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Guide Note for Company Master */}
+            {masterType === 'company' && (
+                <div className="alert alert-info border-0 shadow-sm mb-4 fade-in" style={{ borderRadius: '12px', background: 'linear-gradient(to right, #fdf4ff, #fae8ff)', padding: '16px 20px', borderLeft: '4px solid #d946ef' }}>
+                    <div className="d-flex align-items-center gap-3">
+                        <div className="bg-magenta text-white rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px', flexShrink: 0, backgroundColor: '#d946ef' }}>
+                            <i className="bi bi-building-fill" style={{ fontSize: '1.2rem' }}></i>
+                        </div>
+                        <div>
+                            <h6 className="mb-1 fw-bold" style={{ color: '#a21caf' }}>Company Master Guide</h6>
+                            <p className="mb-0 small text-muted">
+                                Register your legal entities here. Each company will have its own dedicated accounts, employees, and financial transactions. 
+                                Make sure to enter the correct <strong>GST</strong> and <strong>PAN</strong> details for official reporting.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Guide Note for Employee Master */}
+            {masterType === 'employee' && (
+                <div className="alert alert-info border-0 shadow-sm mb-4 fade-in" style={{ borderRadius: '12px', background: 'linear-gradient(to right, #fff7ed, #fffbeb)', padding: '16px 20px', borderLeft: '4px solid #f59e0b' }}>
+                    <div className="d-flex align-items-center gap-3">
+                        <div className="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+                            <i className="bi bi-person-badge-fill" style={{ fontSize: '1.2rem' }}></i>
+                        </div>
+                        <div>
+                            <h6 className="mb-1 fw-bold" style={{ color: '#92400e' }}>Employee Master Guide</h6>
+                            <p className="mb-0 small text-muted">
+                                Manage employee records and account credentials here. Provide a unique <strong>Employee Code</strong> and <strong>email</strong> (if available). You can optionally set a username and password and choose to send credentials by email.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Guide Note for Bank Master */}
+            {masterType === 'bank' && (
+                <div className="alert alert-info border-0 shadow-sm mb-4 fade-in" style={{ borderRadius: '12px', background: 'linear-gradient(to right, #f0fdf4, #dcfce7)', padding: '16px 20px', borderLeft: '4px solid #22c55e' }}>
+                    <div className="d-flex align-items-center gap-3">
+                        <div className="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+                            <i className="bi bi-bank2" style={{ fontSize: '1.2rem' }}></i>
+                        </div>
+                        <div>
+                            <h6 className="mb-1 fw-bold text-success">Bank Master Guide</h6>
+                            <p className="mb-0 small text-muted">
+                                List all banks where your companies hold accounts. Accurate <strong>IFSC Codes</strong> and <strong>Branch Names</strong> help in identifying locations during account setup.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Page Header */}
+
+
+
             <div className="master-header">
                 <div className="header-info">
                     <h2 className="master-title">{masterTitles[masterType] || 'Master'}</h2>
@@ -296,6 +563,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                             <thead>
                                 <tr>
                                     <th className="col-sr">#</th>
+                                            {masterType === 'employee' && <><th>Emp Code</th><th>Name</th><th>Email</th><th>Username</th></>}
                                     {masterType === 'company' && <>
                                         <th>Code</th>
                                         <th>Company Name</th>
@@ -336,6 +604,12 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                 ) : paginatedData.map((item, idx) => (
                                     <tr key={item.id} className={item.status === 'Inactive' ? 'row-inactive' : ''}>
                                         <td className="col-sr">{srBase + idx + 1}</td>
+                                        {masterType === 'employee' && <>
+                                            <td><code className="master-code-badge">{item.empCode}</code></td>
+                                            <td className="fw-semibold" style={{ color: '#0f172a' }}>{item.name}</td>
+                                            <td className="small text-muted">{item.email || '—'}</td>
+                                            <td className="small text-muted">{item.username || '—'}</td>
+                                        </>}
                                         {masterType === 'company' && <>
                                             <td><code className="master-code-badge">{item.code}</code></td>
                                             <td className="fw-semibold" style={{ color: '#0f172a' }}>{item.name}</td>
@@ -373,7 +647,17 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                         </td>
                                         <td>
                                             <div className="action-btns">
-                                                <button className="btn-icon" onClick={() => openModal(item)} title="Edit"><i className="bi bi-pencil"></i></button>
+                                                {masterType === 'employee' && (
+                                                    <>
+                                                        <button className="btn-icon" onClick={() => handleEditDetails(item)} title="Edit Details (Profile)"><i className="bi bi-person-check"></i></button>
+                                                        <button className="btn-icon" onClick={() => handleEditCredentials(item)} title="Update Credentials (Username/Password)"><i className="bi bi-key"></i></button>
+                                                        <button className="btn-icon" onClick={() => handleResetPassword(item.id)} title="Reset Password"><i className="bi bi-arrow-clockwise"></i></button>
+                                                        <button className="btn-icon" onClick={() => handleResetUsername(item.id)} title="Reset Username"><i className="bi bi-person-gear"></i></button>
+                                                    </>
+                                                )}
+                                                {masterType !== 'employee' && (
+                                                    <button className="btn-icon" onClick={() => openModal(item)} title="Edit"><i className="bi bi-pencil"></i></button>
+                                                )}
                                                 <button className="btn-icon text-danger" onClick={() => handleDelete(item.id)} title="Delete"><i className="bi bi-trash"></i></button>
                                             </div>
                                         </td>
@@ -490,7 +774,86 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                     <div className="row g-4">
 
                                         {/* ── Company Fields ── */}
-                                        {masterType === 'company' && <>
+                                            {masterType === 'employee' && <>
+                                                <div className="col-md-4">
+                                                    <label className="form-label-custom">Employee Code <span className="text-danger">*</span></label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-control-custom"
+                                                        value={formValues?.empCode ?? ''}
+                                                        placeholder="e.g. EMP-001"
+                                                        disabled={!!selectedItem}
+                                                        onChange={e => setFormValues(v => ({ ...(v || {}), empCode: e.target.value }))}
+                                                    />
+                                                    {selectedItem && <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code cannot be changed after creation</small>}
+                                                </div>
+                                                <div className="col-md-8">
+                                                    <label className="form-label-custom">Employee Name <span className="text-danger">*</span></label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-control-custom"
+                                                        value={formValues?.name ?? ''}
+                                                        placeholder="Enter employee full name"
+                                                        onChange={e => setFormValues(v => ({ ...(v || {}), name: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Email</label>
+                                                    <input
+                                                        type="email"
+                                                        className="form-control-custom"
+                                                        value={formValues?.email ?? ''}
+                                                        placeholder="email@company.com"
+                                                        onChange={e => setFormValues(v => ({ ...(v || {}), email: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Phone</label>
+                                                    <input
+                                                        type="tel"
+                                                        className="form-control-custom"
+                                                        value={formValues?.phone ?? ''}
+                                                        placeholder="10-digit number"
+                                                        onChange={e => setFormValues(v => ({ ...(v || {}), phone: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Designation</label>
+                                                    <input type="text" className="form-control-custom" value={formValues?.designation ?? ''} onChange={e => setFormValues(v => ({ ...(v || {}), designation: e.target.value }))} />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Department</label>
+                                                    <input type="text" className="form-control-custom" value={formValues?.department ?? ''} onChange={e => setFormValues(v => ({ ...(v || {}), department: e.target.value }))} />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Username</label>
+                                                    <input type="text" className="form-control-custom" value={formValues?.username ?? ''} placeholder="Optional username" onChange={e => setFormValues(v => ({ ...(v || {}), username: e.target.value }))} />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Send Credentials</label>
+                                                    <div className="form-check form-switch">
+                                                        <input className="form-check-input" type="checkbox" checked={formValues?.sendCredentials || false} onChange={e => setFormValues(v => ({ ...(v || {}), sendCredentials: e.target.checked }))} />
+                                                    </div>
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Password</label>
+                                                    <input type="password" className="form-control-custom" value={formValues?.password ?? ''} placeholder="Enter password (optional)" onChange={e => setFormValues(v => ({ ...(v || {}), password: e.target.value }))} />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label-custom">Confirm Password</label>
+                                                    <input type="password" className="form-control-custom" value={formValues?.confirmPassword ?? ''} placeholder="Confirm password" onChange={e => setFormValues(v => ({ ...(v || {}), confirmPassword: e.target.value }))} />
+                                                </div>
+                                                <div className="col-md-4">
+                                                    <label className="form-label-custom">Status</label>
+                                                    <select className="form-control-custom" value={formValues?.status ?? 'Active'} onChange={e => setFormValues(v => ({ ...(v || {}), status: e.target.value }))}>
+                                                        <option>Active</option>
+                                                        <option>Inactive</option>
+                                                    </select>
+                                                </div>
+                                            </>}
+                                        
+                                            {/* ── Company Fields ── */}
+                                            {masterType === 'company' && <>
                                             <div className="col-md-4">
                                                 <label className="form-label-custom">Company Code <span className="text-danger">*</span></label>
                                                 <input
@@ -711,6 +1074,111 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                     </button>
                                 </div>
 
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* ────────────── EDIT DETAILS MODAL (EMPLOYEE ONLY) ────────────── */}
+            {showDetailsModal && masterType === 'employee' && (
+                <>
+                    <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
+                    <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 1060 }}>
+                        <div className="modal-dialog modal-dialog-centered">
+                            <div className="modal-content border-0" style={{ borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+                                <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                                    <div>
+                                        <h5 className="modal-title fw-bold mb-0" style={{ color: '#0f172a', fontSize: '1rem' }}>
+                                            Edit Employee Details
+                                        </h5>
+                                        <p className="mb-0 mt-1" style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                                            Update profile information only (no credentials).
+                                        </p>
+                                    </div>
+                                    <button type="button" className="btn-close" onClick={() => setShowDetailsModal(false)}></button>
+                                </div>
+                                <div className="modal-body" style={{ padding: '28px 24px' }}>
+                                    <div className="row g-4">
+                                        <div className="col-12">
+                                            <label className="form-label-custom">Employee Name <span className="text-danger">*</span></label>
+                                            <input type="text" className="form-control-custom" value={detailsFormValues?.name ?? ''} onChange={e => setDetailsFormValues(v => ({ ...(v || {}), name: e.target.value }))} />
+                                        </div>
+                                        <div className="col-12">
+                                            <label className="form-label-custom">Email</label>
+                                            <input type="email" className="form-control-custom" value={detailsFormValues?.email ?? ''} onChange={e => setDetailsFormValues(v => ({ ...(v || {}), email: e.target.value }))} />
+                                        </div>
+                                        <div className="col-md-6">
+                                            <label className="form-label-custom">Phone</label>
+                                            <input type="tel" className="form-control-custom" value={detailsFormValues?.phone ?? ''} onChange={e => setDetailsFormValues(v => ({ ...(v || {}), phone: e.target.value }))} />
+                                        </div>
+                                        <div className="col-md-6">
+                                            <label className="form-label-custom">Designation</label>
+                                            <input type="text" className="form-control-custom" value={detailsFormValues?.designation ?? ''} onChange={e => setDetailsFormValues(v => ({ ...(v || {}), designation: e.target.value }))} />
+                                        </div>
+                                        <div className="col-md-6">
+                                            <label className="form-label-custom">Department</label>
+                                            <input type="text" className="form-control-custom" value={detailsFormValues?.department ?? ''} onChange={e => setDetailsFormValues(v => ({ ...(v || {}), department: e.target.value }))} />
+                                        </div>
+                                        <div className="col-md-6">
+                                            <label className="form-label-custom">Status</label>
+                                            <select className="form-control-custom" value={detailsFormValues?.status ?? 'Active'} onChange={e => setDetailsFormValues(v => ({ ...(v || {}), status: e.target.value }))}>
+                                                <option>Active</option>
+                                                <option>Inactive</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', gap: '10px' }}>
+                                    <button className="btn btn-light px-4 py-2 rounded-3" onClick={() => setShowDetailsModal(false)}>Cancel</button>
+                                    <button className="btn btn-primary-custom px-4 py-2 rounded-3" onClick={handleUpdateDetails}><i className="bi bi-check2-circle me-2"></i>Update Details</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* ────────────── UPDATE CREDENTIALS MODAL (EMPLOYEE ONLY) ────────────── */}
+            {showCredentialsModal && masterType === 'employee' && (
+                <>
+                    <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
+                    <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 1060 }}>
+                        <div className="modal-dialog modal-dialog-centered">
+                            <div className="modal-content border-0" style={{ borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+                                <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#fef2f2' }}>
+                                    <div>
+                                        <h5 className="modal-title fw-bold mb-0" style={{ color: '#7f1d1d', fontSize: '1rem' }}>
+                                            Update Employee Credentials
+                                        </h5>
+                                        <p className="mb-0 mt-1" style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                                            Update username and/or password only (isolated from profile).
+                                        </p>
+                                    </div>
+                                    <button type="button" className="btn-close" onClick={() => setShowCredentialsModal(false)}></button>
+                                </div>
+                                <div className="modal-body" style={{ padding: '28px 24px' }}>
+                                    <div className="row g-4">
+                                        <div className="col-12">
+                                            <label className="form-label-custom">Username</label>
+                                            <input type="text" className="form-control-custom" value={credentialsFormValues?.username ?? ''} placeholder="Leave blank to keep current" onChange={e => setCredentialsFormValues(v => ({ ...(v || {}), username: e.target.value }))} />
+                                        </div>
+                                        <div className="col-12">
+                                            <label className="form-label-custom">New Password</label>
+                                            <input type="password" className="form-control-custom" value={credentialsFormValues?.password ?? ''} placeholder="Leave blank to keep current" onChange={e => setCredentialsFormValues(v => ({ ...(v || {}), password: e.target.value }))} />
+                                        </div>
+                                        <div className="col-12">
+                                            <div className="form-check form-switch">
+                                                <input className="form-check-input" type="checkbox" checked={credentialsFormValues?.sendEmail || false} onChange={e => setCredentialsFormValues(v => ({ ...(v || {}), sendEmail: e.target.checked }))} />
+                                                <label className="form-check-label">Send credentials to employee's email</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', gap: '10px' }}>
+                                    <button className="btn btn-light px-4 py-2 rounded-3" onClick={() => setShowCredentialsModal(false)}>Cancel</button>
+                                    <button className="btn btn-primary-custom px-4 py-2 rounded-3" onClick={handleUpdateCredentials}><i className="bi bi-shield-lock me-2"></i>Update Credentials</button>
+                                </div>
                             </div>
                         </div>
                     </div>

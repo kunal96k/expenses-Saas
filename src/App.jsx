@@ -22,35 +22,16 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarShown, setIsSidebarShown] = useState(false);
   const [mastersData, setMastersData] = useState({
-    company: [
-      { id: 1, code: 'ACME', name: 'Acme Corp', type: 'Pvt Ltd', gst: '27AAAAA0000A1Z5', pan: 'ABCDE1234F', phone: '9876543210', email: 'contact@acme.com', address: 'Mumbai, India', currency: 'INR (₹)', status: 'Active' },
-      { id: 2, code: 'GLOB', name: 'Global Tech', type: 'LLP', gst: '29BBBBB1111B1Z2', pan: 'FGHIJ5678K', phone: '9000080000', email: 'hr@globaltech.com', address: 'Bangalore, India', currency: 'INR (₹)', status: 'Active' },
-    ],
-    bank: [
-      { id: 1, name: 'HDFC Bank', ifsc: 'HDFC0001234', branch: 'Mumbai Main', status: 'Active' },
-      { id: 2, name: 'ICICI Bank', ifsc: 'ICIC0005678', branch: 'Delhi NCR', status: 'Active' },
-      { id: 3, name: 'SBI Bank', ifsc: 'SBIN0009876', branch: 'Pune Central', status: 'Inactive' },
-    ],
-    paymentMode: [
-      { id: 1, name: 'Cash', description: 'Hard cash payments', status: 'Active' },
-      { id: 2, name: 'Online', description: 'NEFT, RTGS, IMPS', status: 'Active' },
-      { id: 3, name: 'Cheque', description: 'Bank cheque payments', status: 'Active' },
-    ],
-    category: [
-      { id: 1, name: 'Salary', type: 'Expense', status: 'Active' },
-      { id: 2, name: 'Rent', type: 'Expense', status: 'Active' },
-      { id: 3, name: 'Consulting Fee', type: 'Income', status: 'Active' },
-      { id: 4, name: 'Office Supplies', type: 'Expense', status: 'Active' },
-    ]
+    company: [],
+    bank: [],
+    paymentMode: [],
+
+    category: [],
+    employee: []
+
   });
 
-  const [accounts, setAccounts] = useState([
-    { id: 1, companyId: 1, companyName: 'Acme Corp', code: 'AC-MAIN', name: 'HDFC Main', type: 'Bank', bankId: 1, bankName: 'HDFC Bank', accountNumber: '', balance: 1500000, status: 'Active', lastActivity: '2024-04-24', ifsc: 'HDFC0001234', branch: 'Mumbai Main', hasTransactions: true, openingBalance: 1472500, openingDate: '2024-04-01' },
-    { id: 2, companyId: 1, companyName: 'Acme Corp', code: 'AC-CASH', name: 'Petty Cash', type: 'Cash', bankId: null, bankName: '-', accountNumber: '', balance: 25000, status: 'Active', lastActivity: '2024-04-22', ifsc: '', branch: '', hasTransactions: true, openingBalance: 20000, openingDate: '2024-04-01' },
-    { id: 3, companyId: 2, companyName: 'Global Tech', code: 'GT-OPS', name: 'ICICI Operations', type: 'Bank', bankId: 2, bankName: 'ICICI Bank', accountNumber: '', balance: 5000000, status: 'Active', lastActivity: '2024-04-20', ifsc: 'ICIC0005678', branch: 'Delhi NCR', hasTransactions: true, openingBalance: 4800000, openingDate: '2024-04-01' },
-    { id: 4, companyId: 2, companyName: 'Global Tech', code: 'GT-CASH', name: 'Main Cash', type: 'Cash', bankId: null, bankName: '-', accountNumber: '', balance: 12000, status: 'Active', lastActivity: '2024-04-18', ifsc: '', branch: '', hasTransactions: false, openingBalance: 12000, openingDate: '2024-04-10' },
-    { id: 5, companyId: 1, companyName: 'Acme Corp', code: 'AC-SBI', name: 'SBI Current', type: 'Bank', bankId: 3, bankName: 'SBI Bank', accountNumber: '', balance: -5000, status: 'Inactive', lastActivity: '2024-03-15', ifsc: 'SBIN0009876', branch: 'Pune Central', hasTransactions: true, openingBalance: 10000, openingDate: '2024-03-01' }
-  ]);
+  const [accounts, setAccounts] = useState([]);
 
   const defaultSystemSettings = {
     general: {
@@ -88,13 +69,8 @@ function App() {
   };
 
   const [systemSettings, setSystemSettings] = useState(defaultSystemSettings);
-  const [interns, setInterns] = useState([
-    { id: 1, name: "Priya patil", dept: "Development", date: "Oct 24, 2024", status: "active" },
-    { id: 2, name: "kunal patil", dept: "Design", date: "Oct 22, 2024", status: "active" },
-    { id: 3, name: "Amit Patel", dept: "Marketing", date: "Oct 20, 2024", status: "pending" },
-    { id: 4, name: "Sneha Reddy", dept: "Finance", date: "Oct 18, 2024", status: "inactive" },
-    { id: 5, name: "Vikram Singh", dept: "Development", date: "Oct 15, 2024", status: "active" }
-  ]);
+  const [interns, setInterns] = useState([]);
+
 
   const toggleSidebar = () => {
     if (window.innerWidth >= 992) {
@@ -195,7 +171,13 @@ function App() {
           ) : ['bank-statement', 'company-report', 'combined-report', 'date-wise-report'].includes(activePage) ? (
             <ReportsPage activePage={activePage} userRole={userRole} />
           ) : activePage === 'employee-master' ? (
-            <UsersPage activePage={activePage} userRole={userRole} />
+            <MastersPage
+              activePage={activePage}
+              userRole={userRole}
+              mastersData={mastersData}
+              setMastersData={setMastersData}
+              accounts={accounts}
+            />
           ) : ['general-settings', 'preferences'].includes(activePage) ? (
             userRole === 'Super Admin' ? (
               <SettingsPage
