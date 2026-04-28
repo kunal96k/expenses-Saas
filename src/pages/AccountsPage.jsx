@@ -82,12 +82,31 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
     };
 
     useEffect(() => {
-        fetchAccounts();
-    }, [currentPage, itemsPerPage, filters, sortConfig]);
+        if (activePage === 'all-accounts') {
+            fetchAccounts();
+        }
+    }, [currentPage, itemsPerPage, filters, sortConfig, activePage]);
 
     useEffect(() => {
-
-    }, [activeAccountStatement]);
+        const fetchStatement = async () => {
+            if (activePage === 'account-statement' && activeAccountStatement?.id) {
+                setIsFiltering(true);
+                try {
+                    const [stmtResponse, accResponse] = await Promise.all([
+                        apiService.get(`/accounts/${activeAccountStatement.id}/statement`),
+                        apiService.get(`/accounts/${activeAccountStatement.id}`)
+                    ]);
+                    setStatementData(stmtResponse || []);
+                    setActiveAccountStatement(accResponse);
+                } catch (error) {
+                    console.error('Error fetching statement:', error);
+                } finally {
+                    setIsFiltering(false);
+                }
+            }
+        };
+        fetchStatement();
+    }, [activePage, activeAccountStatement?.id]);
 
 
 
@@ -110,11 +129,11 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         }
         if (modalName === 'editAccount' && account) {
             setFormValues({
-                companyId: account.companyId,
+                companyId: String(account.companyId || ''),
                 code: account.code,
                 name: account.name,
                 type: account.type,
-                bankId: account.bankId ?? '',
+                bankId: account.bankId ? String(account.bankId) : '',
                 accountNumber: account.accountNumber || '',
                 ifsc: account.ifsc || '',
                 branch: account.branch || '',
@@ -131,13 +150,10 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         setSelectedAccount(null);
     };
 
-    const activeCompanies = useMemo(() => {
-        return (mastersData?.company || []).filter(c => c.status === 'Active');
-    }, [mastersData]);
-
-    const activeBanks = useMemo(() => {
-        return (mastersData?.bank || []).filter(b => b.status === 'Active');
-    }, [mastersData]);
+    const allCompanies = useMemo(() => mastersData?.company || [], [mastersData]);
+    const activeCompanies = useMemo(() => allCompanies.filter(c => c.status === 'Active'), [allCompanies]);
+    const allBanks = useMemo(() => mastersData?.bank || [], [mastersData]);
+    const activeBanks = useMemo(() => allBanks.filter(b => b.status === 'Active'), [allBanks]);
 
     const handleSaveAccount = async () => {
         if (!formValues) return;
@@ -188,20 +204,25 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         try {
             if (selectedAccount) {
                 await apiService.put(`/accounts/${selectedAccount.id}`, next);
-                Swal.fire('Updated', 'Account updated successfully.', 'success');
+                Swal.fire({ icon: 'success', title: 'Updated', text: 'Account updated successfully.', timer: 1500, showConfirmButton: false });
             } else {
                 await apiService.post('/accounts', next);
-                Swal.fire('Saved', 'Account added successfully.', 'success');
+                Swal.fire({ icon: 'success', title: 'Saved', text: 'Account added successfully.', timer: 1500, showConfirmButton: false });
             }
             fetchAccounts();
             closeModal();
-            setActivePage('all-accounts');
+            if (setActivePage) setActivePage('all-accounts');
         } catch (error) {
             console.error('Error saving account:', error);
             const errorMsg = error.errors 
-                ? Object.values(error.errors).join('\n') 
+                ? Object.values(error.errors).map(msg => `• ${msg}`).join('<br/>') 
                 : error.message;
-            Swal.fire('Error', 'Failed to save account. ' + errorMsg, 'error');
+            
+            Swal.fire({
+                title: 'Validation Error',
+                html: `<div class="text-start">${errorMsg}</div>`,
+                icon: 'error'
+            });
         }
     };
 
@@ -252,7 +273,22 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         if (!isoDate) return '-';
         const d = new Date(isoDate);
         if (Number.isNaN(d.getTime())) return isoDate;
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+        
+        // Date part: 28-Apr-2026
+        const datePart = d.toLocaleDateString('en-GB', { 
+            day: '2-digit', 
+            month: 'short', 
+            year: 'numeric' 
+        }).replace(/ /g, '-');
+        
+        // Time part: 18:45
+        const timePart = d.toLocaleTimeString('en-GB', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+        });
+        
+        return `${datePart} ${timePart}`;
     };
 
     const statementModes = useMemo(() => {
@@ -273,7 +309,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
             const modeOk = f.mode === 'all' || r.mode === f.mode;
             const q = (f.search || '').trim().toLowerCase();
             const searchOk = !q ||
-                (r.desc || '').toLowerCase().includes(q) ||
+                (r.description || '').toLowerCase().includes(q) ||
                 (r.ref || '').toLowerCase().includes(q) ||
                 (r.fromTo || '').toLowerCase().includes(q);
             return inFrom && inTo && typeOk && modeOk && searchOk;
@@ -391,57 +427,71 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                     <label className="form-label small text-muted">Date To</label>
                                     <input type="date" className="form-control" value={statementFilters.dateTo} onChange={(e) => setStatementFilters(v => ({ ...v, dateTo: e.target.value }))} />
                                 </div>
-                                <div className="col-6 col-md-2">
+                                <div className="col-6 col-md-3">
                                     <label className="form-label small text-muted">Transaction Type</label>
                                     <select className="form-select" value={statementFilters.type} onChange={(e) => setStatementFilters(v => ({ ...v, type: e.target.value }))}>
-                                        <option value="all">All</option>
-                                        <option value="Received">Received</option>
-                                        <option value="Paid">Paid</option>
-                                        <option value="Moved">Moved</option>
+                                        <option value="all">All Types</option>
+                                        <option value="Received">Received (In)</option>
+                                        <option value="Paid">Paid (Out)</option>
+                                        <option value="Moved">Moved (Transfer)</option>
                                     </select>
                                 </div>
-                                <div className="col-6 col-md-2">
+                                <div className="col-6 col-md-3">
                                     <label className="form-label small text-muted">Payment Mode</label>
                                     <select className="form-select" value={statementFilters.mode} onChange={(e) => setStatementFilters(v => ({ ...v, mode: e.target.value }))}>
-                                        <option value="all">All</option>
+                                        <option value="all">All Modes</option>
                                         {statementModes.map(m => <option key={m} value={m}>{m}</option>)}
                                     </select>
                                 </div>
-                                <div className="col-12 col-md-2">
-                                    <label className="form-label small text-muted">Search</label>
-                                    <input type="text" className="form-control" placeholder="Description / Ref / Party" value={statementFilters.search} onChange={(e) => setStatementFilters(v => ({ ...v, search: e.target.value }))} />
-                                </div>
-
-                                <div className="col-12 d-flex flex-column flex-sm-row gap-3 align-items-sm-center mt-2">
-                                    <div className="d-flex gap-2 flex-grow-1">
-                                        <button
-                                            className="btn btn-primary-custom flex-grow-1"
-                                            disabled={isFiltering}
-                                            onClick={() => {
-                                                setIsFiltering(true);
-                                                window.setTimeout(() => {
-                                                    setAppliedStatementFilters(statementFilters);
-                                                    setIsFiltering(false);
-                                                }, 300);
-                                            }}
-                                        >
-                                            {isFiltering ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Applying</> : <><i className="bi bi-funnel me-2"></i>Apply Filters</>}
-                                        </button>
-                                        <button
-                                            className="btn btn-light border flex-grow-1"
-                                            disabled={isFiltering}
-                                            onClick={() => {
-                                                const reset = { dateFrom: '', dateTo: '', type: 'all', mode: 'all', search: '' };
-                                                setStatementFilters(reset);
-                                                setAppliedStatementFilters(reset);
-                                            }}
-                                        >
-                                            <i className="bi bi-arrow-counterclockwise me-2"></i>Reset
-                                        </button>
-                                    </div>
-
-                                    <div className="small text-muted">
-                                        <i className="bi bi-info-circle me-1"></i> Debit = money out, Credit = money in
+                                <div className="col-12 mt-3">
+                                    <div className="row align-items-end g-3">
+                                        <div className="col-md-8">
+                                            <label className="form-label small text-muted">Search Keywords</label>
+                                            <div className="position-relative">
+                                                <input 
+                                                    type="text" 
+                                                    className="form-control ps-5" 
+                                                    placeholder="Search by Description, Reference, or Party..." 
+                                                    value={statementFilters.search} 
+                                                    onChange={(e) => setStatementFilters(v => ({ ...v, search: e.target.value }))} 
+                                                />
+                                                <i className="bi bi-search position-absolute start-0 top-50 translate-middle-y ms-3 text-muted"></i>
+                                            </div>
+                                        </div>
+                                        <div className="col-md-4 d-flex gap-2">
+                                            <button
+                                                className="btn btn-primary-custom flex-grow-1"
+                                                disabled={isFiltering}
+                                                onClick={() => {
+                                                    setAppliedStatementFilters({ ...statementFilters });
+                                                    setStatementPage(1);
+                                                }}
+                                            >
+                                                {isFiltering ? (
+                                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                ) : (
+                                                    <i className="bi bi-funnel-fill me-2"></i>
+                                                )}
+                                                Apply Filters
+                                            </button>
+                                            <button
+                                                className="btn btn-outline-custom"
+                                                onClick={() => {
+                                                    const resetFilters = {
+                                                        dateFrom: '',
+                                                        dateTo: '',
+                                                        type: 'all',
+                                                        mode: 'all',
+                                                        search: ''
+                                                    };
+                                                    setStatementFilters(resetFilters);
+                                                    setAppliedStatementFilters(resetFilters);
+                                                    setStatementPage(1);
+                                                }}
+                                            >
+                                                <i className="bi bi-arrow-counterclockwise"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -478,8 +528,8 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                 <div key={row.id} className="statement-txn-card" onClick={() => openTxnModal(row)}>
                                                     <div className="d-flex justify-content-between align-items-start gap-2">
                                                         <div>
-                                                            <div className="fw-semibold">{row.desc}</div>
-                                                            <div className="text-muted small">{formatStatementDate(row.date)} • <code className="text-muted">{row.id}</code></div>
+                                                            <div className="fw-semibold">{row.description?.length > 15 ? row.description.substring(0, 15) + '...' : row.description}</div>
+                                                            <div className="text-muted small">{formatStatementDate(row.date)} • <code className="text-muted">TXT{String(row.id).padStart(6, '0')}</code></div>
                                                         </div>
                                                         <div className={`text-end fw-bold ${isDebit ? 'text-danger' : isCredit ? 'text-success' : ''}`}>₹{amount.toLocaleString('en-IN')}</div>
                                                     </div>
@@ -536,7 +586,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                 <tbody>
                                     <tr className="bg-light">
                                         <td colSpan="10" className="fw-bold text-muted">Opening Balance</td>
-                                        <td className="text-end fw-bold">₹{activeAccountStatement.openingBalance.toLocaleString('en-IN')}</td>
+                                        <td className="text-end fw-bold">₹{(activeAccountStatement?.openingBalance || 0).toLocaleString('en-IN')}</td>
                                     </tr>
                                     {isFiltering ? (
                                         <tr>
@@ -556,9 +606,11 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                         paginatedStatementRows.map(row => (
                                             <tr key={row.id} style={{ cursor: 'pointer' }} onClick={() => openTxnModal(row)}>
                                                 <td data-label="Date">{formatStatementDate(row.date)}</td>
-                                                <td data-label="Transaction ID"><code className="text-muted">{row.id}</code></td>
+                                                <td data-label="Transaction ID"><code className="text-muted">TXT{String(row.id).padStart(6, '0')}</code></td>
                                                 <td data-label="Description">
-                                                    <div className="fw-semibold">{row.desc}</div>
+                                                    <div className="fw-semibold" title={row.description}>
+                                                        {row.description?.length > 15 ? row.description.substring(0, 15) + '...' : row.description}
+                                                    </div>
                                                 </td>
                                                 <td data-label="From → To" className="text-muted small">{row.fromTo}</td>
                                                 <td data-label="Type">
@@ -567,9 +619,9 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                 <td data-label="Payment Mode"><span className="badge bg-light text-dark border">{row.mode}</span></td>
                                                 <td data-label="Reference"><code className="text-muted">{row.ref || '-'}</code></td>
                                                 <td data-label="Amount" className="text-end text-muted">₹{(Number(row.debit || 0) + Number(row.credit || 0)).toLocaleString('en-IN')}</td>
-                                                <td data-label="Debit (Out)" className="text-end text-danger">{row.debit > 0 ? `₹${row.debit.toLocaleString('en-IN')}` : '-'}</td>
-                                                <td data-label="Credit (In)" className="text-end text-success">{row.credit > 0 ? `₹${row.credit.toLocaleString('en-IN')}` : '-'}</td>
-                                                <td data-label="Running Balance" className={`text-end fw-bold statement-balance-col ${row.balance < 0 ? 'text-danger' : 'text-dark'}`}>₹{row.balance.toLocaleString('en-IN')}</td>
+                                                <td data-label="Debit (Out)" className="text-end text-danger">{row.debit > 0 ? `₹${(row.debit || 0).toLocaleString('en-IN')}` : '-'}</td>
+                                                <td data-label="Credit (In)" className="text-end text-success">{row.credit > 0 ? `₹${(row.credit || 0).toLocaleString('en-IN')}` : '-'}</td>
+                                                <td data-label="Running Balance" className={`text-end fw-bold statement-balance-col ${row.balance < 0 ? 'text-danger' : 'text-dark'}`}>₹{(row.balance || 0).toLocaleString('en-IN')}</td>
                                             </tr>
                                         ))
                                     )}
@@ -637,53 +689,76 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                             <h5 className="modal-title fw-bold">Transaction Details</h5>
                                             <button type="button" className="btn-close" onClick={closeTxnModal}></button>
                                         </div>
-                                        <div className="modal-body">
-                                            <div className="row g-3">
+                                        <div className="modal-body p-4">
+                                            <div className="row g-4">
                                                 <div className="col-md-4">
-                                                    <div className="text-muted small">Transaction ID</div>
-                                                    <div className="fw-bold"><code>{selectedTxn?.id}</code></div>
+                                                    <div className="detail-item">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Transaction ID</label>
+                                                        <div className="h6 mb-0 font-monospace text-primary">TXT{String(selectedTxn?.id).padStart(6, '0')}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="col-md-4">
-                                                    <div className="text-muted small">Date</div>
-                                                    <div className="fw-bold">{formatStatementDate(selectedTxn?.date)}</div>
+                                                    <div className="detail-item">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Date & Time</label>
+                                                        <div className="h6 mb-0">{formatStatementDate(selectedTxn?.date)}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="col-md-4">
-                                                    <div className="text-muted small">Type</div>
-                                                    <div>
-                                                        <span className={`badge ${selectedTxn?.type === 'Received' ? 'bg-success-soft text-success' : selectedTxn?.type === 'Paid' ? 'bg-danger-soft text-danger' : 'bg-primary-soft text-primary'}`}>{selectedTxn?.type}</span>
+                                                    <div className="detail-item">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Type</label>
+                                                        <div>
+                                                            <span className={`badge rounded-pill px-3 py-2 ${selectedTxn?.type === 'Received' ? 'bg-success-soft text-success' : selectedTxn?.type === 'Paid' ? 'bg-danger-soft text-danger' : 'bg-primary-soft text-primary'}`}>
+                                                                <i className={`bi ${selectedTxn?.type === 'Received' ? 'bi-arrow-down-left' : selectedTxn?.type === 'Paid' ? 'bi-arrow-up-right' : 'bi-arrow-left-right'} me-1`}></i>
+                                                                {selectedTxn?.type?.toUpperCase()}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
 
                                                 <div className="col-12">
-                                                    <div className="text-muted small">Description</div>
-                                                    <div className="fw-semibold">{selectedTxn?.desc}</div>
+                                                    <div className="detail-item p-3 bg-light rounded-3 border-start border-4 border-primary">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Description</label>
+                                                        <div className="h6 mb-0 fw-bold">{selectedTxn?.description || 'N/A'}</div>
+                                                    </div>
                                                 </div>
 
                                                 <div className="col-12">
-                                                    <div className="text-muted small">From → To</div>
-                                                    <div className="text-muted">{selectedTxn?.fromTo}</div>
+                                                    <div className="detail-item">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>From → To Movement</label>
+                                                        <div className="h6 mb-0 text-muted">{selectedTxn?.fromTo}</div>
+                                                    </div>
                                                 </div>
 
                                                 <div className="col-md-4">
-                                                    <div className="text-muted small">Payment Mode</div>
-                                                    <div className="fw-semibold">{selectedTxn?.mode || '-'}</div>
+                                                    <div className="detail-item">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Payment Mode</label>
+                                                        <div className="h6 mb-0 fw-semibold">{selectedTxn?.mode || '-'}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="col-md-4">
-                                                    <div className="text-muted small">Reference</div>
-                                                    <div className="fw-semibold"><code className="text-muted">{selectedTxn?.ref || '-'}</code></div>
+                                                    <div className="detail-item">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Reference / Voucher</label>
+                                                        <div className="h6 mb-0 font-monospace text-muted">{selectedTxn?.ref || '-'}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="col-md-4">
-                                                    <div className="text-muted small">Running Balance</div>
-                                                    <div className="fw-bold">₹{Number(selectedTxn?.balance || 0).toLocaleString('en-IN')}</div>
+                                                    <div className="detail-item">
+                                                        <label className="text-uppercase small fw-bold text-muted mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Running Balance</label>
+                                                        <div className="h5 mb-0 fw-bold">₹{Number(selectedTxn?.balance || 0).toLocaleString('en-IN')}</div>
+                                                    </div>
                                                 </div>
 
                                                 <div className="col-md-6">
-                                                    <div className="text-muted small">Debit (Out)</div>
-                                                    <div className="fw-bold text-danger">{Number(selectedTxn?.debit || 0) ? `₹${Number(selectedTxn?.debit || 0).toLocaleString('en-IN')}` : '-'}</div>
+                                                    <div className="detail-item p-3 rounded-3" style={{ background: 'rgba(239, 68, 68, 0.05)' }}>
+                                                        <label className="text-uppercase small fw-bold text-danger mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Debit (Money Out)</label>
+                                                        <div className="h5 mb-0 fw-bold text-danger">{Number(selectedTxn?.debit || 0) ? `₹${Number(selectedTxn?.debit || 0).toLocaleString('en-IN')}` : '₹0.00'}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="col-md-6">
-                                                    <div className="text-muted small">Credit (In)</div>
-                                                    <div className="fw-bold text-success">{Number(selectedTxn?.credit || 0) ? `₹${Number(selectedTxn?.credit || 0).toLocaleString('en-IN')}` : '-'}</div>
+                                                    <div className="detail-item p-3 rounded-3" style={{ background: 'rgba(16, 185, 129, 0.05)' }}>
+                                                        <label className="text-uppercase small fw-bold text-success mb-1 d-block" style={{ letterSpacing: '0.05em' }}>Credit (Money In)</label>
+                                                        <div className="h5 mb-0 fw-bold text-success">{Number(selectedTxn?.credit || 0) ? `₹${Number(selectedTxn?.credit || 0).toLocaleString('en-IN')}` : '₹0.00'}</div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -779,7 +854,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                 {acc.balance < 0 && (
                                                     <i className="bi bi-exclamation-triangle-fill me-1" title="Negative balance — check transactions"></i>
                                                 )}
-                                                ₹{acc.balance.toLocaleString('en-IN')}
+                                                ₹{(acc.balance || 0).toLocaleString('en-IN')}
                                             </td>
                                             <td data-label="Last Activity"><span className="text-muted small">{acc.lastActivity || '-'}</span></td>
                                             <td data-label="Status" className="text-center">
@@ -842,7 +917,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                         <div>
                                             <label className="text-muted small d-block">Current Balance</label>
                                             <h5 className={`mb-0 fw-bold ${acc.balance < 0 ? 'text-danger' : 'text-dark'}`}>
-                                                ₹{acc.balance.toLocaleString('en-IN')}
+                                                ₹{(acc.balance || 0).toLocaleString('en-IN')}
                                             </h5>
                                         </div>
                                         <div className="d-flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -898,7 +973,11 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                 onChange={(e) => setFormValues(v => ({ ...(v || {}), companyId: e.target.value }))}
                                             >
                                                 <option value="">Select Company</option>
-                                                {activeCompanies.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                                                {allCompanies.map(c => (
+                                                    <option key={c.id} value={String(c.id)}>
+                                                        {c.name} {c.status === 'Inactive' ? '(Inactive)' : ''}
+                                                    </option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div className="col-md-6">
@@ -956,7 +1035,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                                 value={formValues?.bankId ?? ''}
                                                                 onChange={(e) => {
                                                                     const selectedBankId = e.target.value;
-                                                                    const b = activeBanks.find(x => String(x.id) === String(selectedBankId));
+                                                                    const b = allBanks.find(x => String(x.id) === String(selectedBankId));
                                                                     setFormValues(v => ({
                                                                         ...(v || {}),
                                                                         bankId: selectedBankId,
@@ -966,7 +1045,11 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                                 }}
                                                             >
                                                                 <option value="">Select Bank from Master</option>
-                                                                {activeBanks.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
+                                                                {allBanks.map(b => (
+                                                                    <option key={b.id} value={String(b.id)}>
+                                                                        {b.name} {b.status === 'Inactive' ? '(Inactive)' : ''}
+                                                                    </option>
+                                                                ))}
                                                             </select>
                                                         </div>
                                                         <div className="col-md-6">
@@ -1027,9 +1110,13 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                                 type="date"
                                                 className="form-control-custom"
                                                 value={formValues?.openingDate ?? ''}
+                                                disabled={selectedAccount?.hasTransactions}
                                                 onChange={(e) => setFormValues(v => ({ ...(v || {}), openingDate: e.target.value }))}
                                                 required
                                             />
+                                            {selectedAccount?.hasTransactions && (
+                                                <div className="small text-danger mt-1"><i className="bi bi-exclamation-triangle"></i> Opening date cannot be changed after transactions exist</div>
+                                            )}
                                         </div>
                                         <div className="col-md-6">
                                             <label className="form-label-custom">Account Status</label>

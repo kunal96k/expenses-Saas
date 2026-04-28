@@ -257,7 +257,6 @@
 
 .balance-info-card:hover {
     background: rgba(255, 255, 255, 0.06);
-    transform: translateY(-5px);
     border-color: rgba(255, 255, 255, 0.2);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
@@ -304,13 +303,23 @@
 
 .balance-info-card:hover .icon-box-glass {
     background: rgba(255, 255, 255, 0.15);
-    transform: scale(1.1);
 }
 
-.bg-primary-soft { background-color: rgba(92, 103, 242, 0.1) !important; }
-.bg-warning-soft { background-color: rgba(245, 158, 11, 0.1) !important; }
-.bg-success-soft { background-color: rgba(16, 185, 129, 0.1) !important; }
-.bg-danger-soft { background-color: rgba(239, 68, 68, 0.1) !important; }
+.bg-primary-soft {
+    background-color: rgba(92, 103, 242, 0.1) !important;
+}
+
+.bg-warning-soft {
+    background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.bg-success-soft {
+    background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.bg-danger-soft {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+}
 
 .btn-icon-small {
     width: 32px;
@@ -355,7 +364,8 @@
     width: 100%;
     padding: 0.75rem 1rem;
     border-radius: 0.75rem;
-    border: 1.5px solid #cbd5e1; /* Made darker and slightly thicker for visibility */
+    border: 1.5px solid #cbd5e1;
+    /* Made darker and slightly thicker for visibility */
     background: #f8fafc;
     font-size: 0.95rem;
     transition: all 0.2s;
@@ -379,7 +389,6 @@
 }
 
 .account-mobile-card:hover {
-    transform: translateY(-4px);
     box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.12) !important;
     border-color: #e2e8f0 !important;
 }
@@ -413,8 +422,15 @@
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Responsive */
@@ -432,7 +448,7 @@
         padding: 1.5rem;
         border-radius: 1.25rem;
     }
-    
+
     .balance-info-card {
         min-width: 100%;
         padding: 1.25rem;
@@ -455,7 +471,7 @@
     }
 
     /* Fix for tall buttons on mobile */
-    .btn-primary-custom, 
+    .btn-primary-custom,
     .btn-light.border,
     .btn-secondary-custom {
         padding: 0.5rem 1rem;
@@ -490,6 +506,3 @@
         font-size: 1.25rem;
     }
 }
-
-
-

@@ -34,9 +34,8 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
       label: 'Accounts', 
       icon: 'bi-bank',
       submodules: [
-        { id: 'all-accounts', label: 'All Accounts', icon: 'bi-credit-card' },
-        { id: 'add-account', label: 'Add Account', icon: 'bi-plus-lg' },
-        { id: 'account-statement', label: 'Account Statement', icon: 'bi-file-text' }
+        { id: 'all-accounts', label: 'Accounts', icon: 'bi-credit-card' },
+        { id: 'add-account', label: 'Add Account', icon: 'bi-plus-lg' }
       ]
     },
     { 

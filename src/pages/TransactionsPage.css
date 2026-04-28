@@ -32,7 +32,6 @@
 
 .btn-transaction:hover {
     opacity: 0.9;
-    transform: translateY(-1px);
 }
 
 .btn-transaction:active {
@@ -73,7 +72,8 @@
 
 .filter-item {
     width: 100%;
-    min-width: 0; /* Prevents flex/grid blowout */
+    min-width: 0;
+    /* Prevents flex/grid blowout */
 }
 
 .filter-item.date-range {
@@ -270,7 +270,6 @@
 }
 
 .badge-type:hover {
-    transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
@@ -449,7 +448,7 @@
     .filter-grid {
         grid-template-columns: repeat(4, 1fr);
     }
-    
+
     .filter-item.date-range {
         grid-column: span 2;
     }
@@ -468,7 +467,7 @@
     .filter-grid {
         grid-template-columns: repeat(3, 1fr);
     }
-    
+
     .filter-item.date-range {
         grid-column: span 3;
     }
@@ -596,10 +595,29 @@
         border: 1px solid transparent;
     }
 
-    .pill-received { background: #ecfdf5; color: #059669; border-color: #d1fae5; }
-    .pill-paid { background: #fef2f2; color: #dc2626; border-color: #fee2e2; }
-    .pill-moved { background: #eff6ff; color: #2563eb; border-color: #dbeafe; }
-    .pill-light { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }
+    .pill-received {
+        background: #ecfdf5;
+        color: #059669;
+        border-color: #d1fae5;
+    }
+
+    .pill-paid {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fee2e2;
+    }
+
+    .pill-moved {
+        background: #eff6ff;
+        color: #2563eb;
+        border-color: #dbeafe;
+    }
+
+    .pill-light {
+        background: #f8fafc;
+        color: #64748b;
+        border-color: #e2e8f0;
+    }
 
     .txn-card-actions .btn {
         padding: 8px;

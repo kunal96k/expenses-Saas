@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import Pagination from '../components/Pagination';
 import { apiService } from '../services/api';
@@ -26,6 +26,8 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     const [credentialsFormValues, setCredentialsFormValues] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [totalElements, setTotalElements] = useState(0);
+    const [localData, setLocalData] = useState([]);
 
     const getApiEndpoint = (type) => {
 
@@ -36,71 +38,66 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         return `/${type}s`;
     };
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         const endpoint = getApiEndpoint(masterType);
         setIsLoading(true);
-
-        setIsLoading(true);
         try {
-            // Fetching all for now to keep existing frontend logic working
-            // In a real scenario, we'd use the paginated endpoint /api/xxx?page=0&size=10
-            const response = await apiService.get(`${endpoint}/all`);
-            const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
-            setMastersData(prev => ({ ...prev, [dataKey]: response }));
+            const params = new URLSearchParams({
+                page: currentPage - 1,
+                size: itemsPerPage,
+                search: searchQuery,
+                sortBy: 'id',
+                direction: 'desc'
+            });
+
+            const response = await apiService.get(`${endpoint}?${params.toString()}`);
+            setLocalData(response.content || []);
+            setTotalElements(response.totalElements || 0);
         } catch (error) {
             console.error('Error fetching data:', error);
-            Swal.fire('Error', `Failed to load ${masterTitles[masterType]}. ${error.message}`, 'error');
+            // Swal.fire('Error', `Failed to load ${masterTitles[masterType]}. ${error.message}`, 'error');
         } finally {
             setIsLoading(false);
         }
+    }, [masterType, currentPage, itemsPerPage, searchQuery]);
+
+    const refreshGlobalMasters = async () => {
+        try {
+            const endpoint = getApiEndpoint(masterType);
+            const response = await apiService.get(`${endpoint}/all`);
+            const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
+            setMastersData(prev => ({ ...prev, [dataKey]: response }));
+        } catch (err) {
+            console.error("Error refreshing global masters:", err);
+        }
     };
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     useEffect(() => {
         if (!showModal) setFormValues(null);
     }, [showModal]);
 
-    // Reset page on master type change and fetch data
+    // Reset page on master type change
     useEffect(() => {
         setCurrentPage(1);
         setSearchQuery('');
-        fetchData();
     }, [masterType]);
 
 
     const isCompanyLinked = (companyId) => (accounts || []).some(a => a.companyId === companyId);
-    const isBankLinked    = (bankId)    => (accounts || []).some(a => a.bankId    === bankId);
+    const isBankLinked = (bankId) => (accounts || []).some(a => a.bankId === bankId);
 
-    // Filtered data
-    const currentData = useMemo(() => {
-        const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
-        const data = mastersData[dataKey] || [];
-        const q = searchQuery.toLowerCase();
-        if (!q) return data;
-        return data.filter(item =>
-            (item.name        && item.name.toLowerCase().includes(q)) ||
-            (item.code        && item.code.toLowerCase().includes(q)) ||
-            (item.type        && item.type.toLowerCase().includes(q)) ||
-            (item.ifsc        && item.ifsc.toLowerCase().includes(q)) ||
-            (item.branch      && item.branch.toLowerCase().includes(q)) ||
-            (item.description && item.description.toLowerCase().includes(q))
-            || (item.empCode && item.empCode.toLowerCase().includes(q))
-            || (item.email && item.email.toLowerCase().includes(q))
-            || (item.username && item.username.toLowerCase().includes(q))
-        );
-    }, [mastersData, masterType, searchQuery]);
-
-    // Pagination
-    const totalPages    = Math.ceil(currentData.length / itemsPerPage);
-    const paginatedData = useMemo(() => {
-        const start = (currentPage - 1) * itemsPerPage;
-        return currentData.slice(start, start + itemsPerPage);
-    }, [currentData, currentPage, itemsPerPage]);
+    // We now use localData directly from the server-side response
 
     const handleToggleStatus = async (id) => {
         const endpoint = getApiEndpoint(masterType);
         try {
             await apiService.patch(`${endpoint}/${id}/toggle-status`);
-            await fetchData(); // Refresh data from server
+            await fetchData(); // Refresh table
+            await refreshGlobalMasters(); // Refresh dropdowns
             Swal.fire({ icon: 'success', title: 'Updated', text: 'Status updated successfully.', timer: 1000, showConfirmButton: false });
         } catch (error) {
             console.error('Error toggling status:', error);
@@ -110,7 +107,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
 
     const handleDelete = (id) => {
-        const dataKey  = masterType === 'payment-mode' ? 'paymentMode' : masterType;
+        const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
         const isLinked = (dataKey === 'company' && isCompanyLinked(id)) || (dataKey === 'bank' && isBankLinked(id));
 
         Swal.fire({
@@ -129,6 +126,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                     const endpoint = getApiEndpoint(masterType);
                     await apiService.delete(`${endpoint}/${id}`);
                     await fetchData();
+                    await refreshGlobalMasters();
                     Swal.fire({ icon: 'success', title: 'Deleted!', text: 'Record removed.', timer: 1500, showConfirmButton: false });
                 } catch (error) {
                     console.error('Error deleting record:', error);
@@ -142,7 +140,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         Swal.fire({
             title: 'Reset Password',
             html: `<input id="swal-input1" class="swal2-input" type="password" placeholder="New password">` +
-                  `<label style="font-weight:600;margin-top:8px;display:block"><input id="swal-send-email" type="checkbox"> Send password to user's email</label>`,
+                `<label style="font-weight:600;margin-top:8px;display:block"><input id="swal-send-email" type="checkbox"> Send password to user's email</label>`,
             focusConfirm: false,
             preConfirm: () => {
                 const newPassword = document.getElementById('swal-input1').value;
@@ -269,49 +267,49 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         setSelectedItem(item);
         if (masterType === 'employee') {
             setFormValues({
-                empCode:     item?.empCode     || '',
-                name:        item?.name        || '',
-                email:       item?.email       || '',
-                phone:       item?.phone       || '',
+                empCode: item?.empCode || '',
+                name: item?.name || '',
+                email: item?.email || '',
+                phone: item?.phone || '',
                 designation: item?.designation || '',
-                department:  item?.department  || '',
-                status:      item?.status      || 'Active',
-                username:    item?.username    || '',
-                password:    '',
+                department: item?.department || '',
+                status: item?.status || 'Active',
+                username: item?.username || '',
+                password: '',
                 confirmPassword: '',
                 sendCredentials: false
             });
         }
         if (masterType === 'company') {
             setFormValues({
-                code:     item?.code     || '',
-                name:     item?.name     || '',
-                type:     item?.type     || 'Pvt Ltd',
-                gst:      item?.gst      || '',
-                pan:      item?.pan      || '',
-                phone:    item?.phone    || '',
-                email:    item?.email    || '',
-                address:  item?.address  || '',
+                code: item?.code || '',
+                name: item?.name || '',
+                type: item?.type || 'Pvt Ltd',
+                gst: item?.gst || '',
+                pan: item?.pan || '',
+                phone: item?.phone || '',
+                email: item?.email || '',
+                address: item?.address || '',
                 currency: item?.currency || 'INR (₹)',
-                status:   item?.status   || 'Active'
+                status: item?.status || 'Active'
             });
         } else if (masterType === 'bank') {
             setFormValues({
-                name:   item?.name   || '',
-                ifsc:   item?.ifsc   || '',
+                name: item?.name || '',
+                ifsc: item?.ifsc || '',
                 branch: item?.branch || '',
                 status: item?.status || 'Active'
             });
         } else if (masterType === 'payment-mode') {
             setFormValues({
-                name:        item?.name        || '',
+                name: item?.name || '',
                 description: item?.description || '',
-                status:      item?.status      || 'Active'
+                status: item?.status || 'Active'
             });
         } else if (masterType === 'category') {
             setFormValues({
-                name:   item?.name   || '',
-                type:   item?.type   || 'Expense',
+                name: item?.name || '',
+                type: item?.type || 'Expense',
                 status: item?.status || 'Active'
             });
         }
@@ -322,15 +320,16 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         try {
             await action();
             await fetchData();
+            await refreshGlobalMasters();
             Swal.fire({ icon: 'success', title: 'Success', text: successMsg, timer: 1500, showConfirmButton: false });
             setShowModal(false);
             setSelectedItem(null);
         } catch (error) {
             console.error('API Error:', error);
-            const errorMsg = error.errors 
-                ? Object.values(error.errors).map(msg => `• ${msg}`).join('<br/>') 
+            const errorMsg = error.errors
+                ? Object.values(error.errors).map(msg => `• ${msg}`).join('<br/>')
                 : error.message;
-            
+
             Swal.fire({
                 title: 'Validation Error',
                 html: `<div class="text-start">${errorMsg}</div>`,
@@ -341,71 +340,71 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
     const handleSave = async () => {
         const endpoint = getApiEndpoint(masterType);
-        
+
         if (masterType === 'company') {
             const payload = {
-                code:     (formValues?.code     || '').trim().toUpperCase(),
-                name:     (formValues?.name     || '').trim(),
-                type:     formValues?.type     || 'Pvt Ltd',
-                gst:      (formValues?.gst      || '').trim().toUpperCase(),
-                pan:      (formValues?.pan      || '').trim().toUpperCase(),
-                phone:    (formValues?.phone    || '').trim(),
-                email:    (formValues?.email    || '').trim(),
-                address:  (formValues?.address  || '').trim(),
+                code: (formValues?.code || '').trim().toUpperCase(),
+                name: (formValues?.name || '').trim(),
+                type: formValues?.type || 'Pvt Ltd',
+                gst: (formValues?.gst || '').trim().toUpperCase(),
+                pan: (formValues?.pan || '').trim().toUpperCase(),
+                phone: (formValues?.phone || '').trim(),
+                email: (formValues?.email || '').trim(),
+                address: (formValues?.address || '').trim(),
                 currency: formValues?.currency || 'INR (₹)',
-                status:   formValues?.status   || 'Active'
+                status: formValues?.status || 'Active'
             };
 
-            const action = selectedItem 
+            const action = selectedItem
                 ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
                 : () => apiService.post(endpoint, payload);
-            
+
             await handleApiAction(action, selectedItem ? 'Company updated.' : 'Company added.');
             return;
         }
 
         if (masterType === 'bank') {
             const payload = {
-                name:   (formValues?.name   || '').trim(),
-                ifsc:   (formValues?.ifsc   || '').trim().toUpperCase(),
+                name: (formValues?.name || '').trim(),
+                ifsc: (formValues?.ifsc || '').trim().toUpperCase(),
                 branch: (formValues?.branch || '').trim(),
                 status: formValues?.status || 'Active'
             };
 
-            const action = selectedItem 
+            const action = selectedItem
                 ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
                 : () => apiService.post(endpoint, payload);
-            
+
             await handleApiAction(action, selectedItem ? 'Bank updated.' : 'Bank added.');
             return;
         }
 
         if (masterType === 'category') {
             const payload = {
-                name:   (formValues?.name   || '').trim(),
-                type:   formValues?.type   || 'Expense',
+                name: (formValues?.name || '').trim(),
+                type: formValues?.type || 'Expense',
                 status: formValues?.status || 'Active'
             };
 
-            const action = selectedItem 
+            const action = selectedItem
                 ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
                 : () => apiService.post(endpoint, payload);
-            
+
             await handleApiAction(action, selectedItem ? 'Category updated.' : 'Category added.');
             return;
         }
 
         if (masterType === 'payment-mode') {
             const payload = {
-                name:        (formValues?.name        || '').trim(),
+                name: (formValues?.name || '').trim(),
                 description: (formValues?.description || '').trim(),
-                status:      formValues?.status || 'Active'
+                status: formValues?.status || 'Active'
             };
 
-            const action = selectedItem 
+            const action = selectedItem
                 ? () => apiService.put(`${endpoint}/${selectedItem.id}`, payload)
                 : () => apiService.post(endpoint, payload);
-            
+
             await handleApiAction(action, selectedItem ? 'Payment Mode updated.' : 'Payment Mode added.');
             return;
         }
@@ -413,11 +412,11 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         if (masterType === 'employee') {
             const payload = {
                 empCode: (formValues?.empCode || '').trim(),
-                name:    (formValues?.name || '').trim(),
-                email:   (formValues?.email || '').trim(),
-                phone:   (formValues?.phone || '').trim(),
+                name: (formValues?.name || '').trim(),
+                email: (formValues?.email || '').trim(),
+                phone: (formValues?.phone || '').trim(),
                 designation: (formValues?.designation || '').trim(),
-                department:  (formValues?.department || '').trim(),
+                department: (formValues?.department || '').trim(),
                 status: formValues?.status || 'Active',
                 username: formValues?.username || undefined,
                 password: formValues?.password || undefined,
@@ -465,7 +464,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                         <div>
                             <h6 className="mb-1 fw-bold text-primary">Master Category Guide</h6>
                             <p className="mb-0 small text-muted">
-                                Categories help you organize your cash flow. Define <strong>Income</strong> categories for revenue sources and <strong>Expense</strong> categories for spending. 
+                                Categories help you organize your cash flow. Define <strong>Income</strong> categories for revenue sources and <strong>Expense</strong> categories for spending.
                                 These categories will be used across the system to classify all financial transactions.
                             </p>
                         </div>
@@ -483,7 +482,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                         <div>
                             <h6 className="mb-1 fw-bold" style={{ color: '#a21caf' }}>Company Master Guide</h6>
                             <p className="mb-0 small text-muted">
-                                Register your legal entities here. Each company will have its own dedicated accounts, employees, and financial transactions. 
+                                Register your legal entities here. Each company will have its own dedicated accounts, employees, and financial transactions.
                                 Make sure to enter the correct <strong>GST</strong> and <strong>PAN</strong> details for official reporting.
                             </p>
                         </div>
@@ -553,17 +552,25 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                         />
                     </div>
-                    <span className="master-toolbar-info">{currentData.length} record{currentData.length !== 1 ? 's' : ''} found</span>
+                    <span className="master-toolbar-info">{totalElements} record{totalElements !== 1 ? 's' : ''} found</span>
                 </div>
 
-                {/* ── Desktop Table (hidden on mobile) ── */}
-                <div className="master-desktop-table d-none d-md-block">
+                {isLoading ? (
+                    <div className="text-center py-5">
+                        <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* ── Desktop Table (hidden on mobile) ── */}
+                        <div className="master-desktop-table d-none d-md-block">
                     <div className="table-responsive">
                         <table className="master-table">
                             <thead>
                                 <tr>
                                     <th className="col-sr">#</th>
-                                            {masterType === 'employee' && <><th>Emp Code</th><th>Name</th><th>Email</th><th>Username</th></>}
+                                    {masterType === 'employee' && <><th>Emp Code</th><th>Name</th><th>Email</th><th>Username</th></>}
                                     {masterType === 'company' && <>
                                         <th>Code</th>
                                         <th>Company Name</th>
@@ -592,7 +599,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginatedData.length === 0 ? (
+                                {localData.length === 0 ? (
                                     <tr className="empty-table-row">
                                         <td colSpan={10}>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
@@ -601,7 +608,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                             </div>
                                         </td>
                                     </tr>
-                                ) : paginatedData.map((item, idx) => (
+                                ) : localData.map((item, idx) => (
                                     <tr key={item.id} className={item.status === 'Inactive' ? 'row-inactive' : ''}>
                                         <td className="col-sr">{srBase + idx + 1}</td>
                                         {masterType === 'employee' && <>
@@ -670,12 +677,12 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
                 {/* ── Mobile Cards (hidden on desktop) ── */}
                 <div className="master-mobile-cards d-block d-md-none">
-                    {paginatedData.length === 0 ? (
+                    {localData.length === 0 ? (
                         <div className="master-empty-mobile">
                             <i className="bi bi-inbox"></i>
                             <span>No records found</span>
                         </div>
-                    ) : paginatedData.map((item, idx) => (
+                    ) : localData.map((item, idx) => (
                         <div key={item.id} className={`master-mobile-card ${item.status === 'Inactive' ? 'card-inactive' : ''}`}>
                             {/* Card Header */}
                             <div className="mcard-header">
@@ -738,12 +745,14 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
                 {/* Pagination */}
                 <Pagination
-                    totalItems={currentData.length}
+                    totalItems={totalElements}
                     itemsPerPage={itemsPerPage}
                     currentPage={currentPage}
                     onPageChange={setCurrentPage}
                     onItemsPerPageChange={val => { setItemsPerPage(val); setCurrentPage(1); }}
                 />
+            </>
+        )}
             </div>
 
             {/* ────────────── MASTER MODAL ────────────── */}
@@ -774,86 +783,86 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                     <div className="row g-4">
 
                                         {/* ── Company Fields ── */}
-                                            {masterType === 'employee' && <>
-                                                <div className="col-md-4">
-                                                    <label className="form-label-custom">Employee Code <span className="text-danger">*</span></label>
-                                                    <input
-                                                        type="text"
-                                                        className="form-control-custom"
-                                                        value={formValues?.empCode ?? ''}
-                                                        placeholder="e.g. EMP-001"
-                                                        disabled={!!selectedItem}
-                                                        onChange={e => setFormValues(v => ({ ...(v || {}), empCode: e.target.value }))}
-                                                    />
-                                                    {selectedItem && <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code cannot be changed after creation</small>}
+                                        {masterType === 'employee' && <>
+                                            <div className="col-md-4">
+                                                <label className="form-label-custom">Employee Code <span className="text-danger">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control-custom"
+                                                    value={formValues?.empCode ?? ''}
+                                                    placeholder="e.g. EMP-001"
+                                                    disabled={!!selectedItem}
+                                                    onChange={e => setFormValues(v => ({ ...(v || {}), empCode: e.target.value }))}
+                                                />
+                                                {selectedItem && <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code cannot be changed after creation</small>}
+                                            </div>
+                                            <div className="col-md-8">
+                                                <label className="form-label-custom">Employee Name <span className="text-danger">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control-custom"
+                                                    value={formValues?.name ?? ''}
+                                                    placeholder="Enter employee full name"
+                                                    onChange={e => setFormValues(v => ({ ...(v || {}), name: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Email</label>
+                                                <input
+                                                    type="email"
+                                                    className="form-control-custom"
+                                                    value={formValues?.email ?? ''}
+                                                    placeholder="email@company.com"
+                                                    onChange={e => setFormValues(v => ({ ...(v || {}), email: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Phone</label>
+                                                <input
+                                                    type="tel"
+                                                    className="form-control-custom"
+                                                    value={formValues?.phone ?? ''}
+                                                    placeholder="10-digit number"
+                                                    onChange={e => setFormValues(v => ({ ...(v || {}), phone: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Designation</label>
+                                                <input type="text" className="form-control-custom" value={formValues?.designation ?? ''} onChange={e => setFormValues(v => ({ ...(v || {}), designation: e.target.value }))} />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Department</label>
+                                                <input type="text" className="form-control-custom" value={formValues?.department ?? ''} onChange={e => setFormValues(v => ({ ...(v || {}), department: e.target.value }))} />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Username</label>
+                                                <input type="text" className="form-control-custom" value={formValues?.username ?? ''} placeholder="Optional username" onChange={e => setFormValues(v => ({ ...(v || {}), username: e.target.value }))} />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Send Credentials</label>
+                                                <div className="form-check form-switch">
+                                                    <input className="form-check-input" type="checkbox" checked={formValues?.sendCredentials || false} onChange={e => setFormValues(v => ({ ...(v || {}), sendCredentials: e.target.checked }))} />
                                                 </div>
-                                                <div className="col-md-8">
-                                                    <label className="form-label-custom">Employee Name <span className="text-danger">*</span></label>
-                                                    <input
-                                                        type="text"
-                                                        className="form-control-custom"
-                                                        value={formValues?.name ?? ''}
-                                                        placeholder="Enter employee full name"
-                                                        onChange={e => setFormValues(v => ({ ...(v || {}), name: e.target.value }))}
-                                                    />
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Email</label>
-                                                    <input
-                                                        type="email"
-                                                        className="form-control-custom"
-                                                        value={formValues?.email ?? ''}
-                                                        placeholder="email@company.com"
-                                                        onChange={e => setFormValues(v => ({ ...(v || {}), email: e.target.value }))}
-                                                    />
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Phone</label>
-                                                    <input
-                                                        type="tel"
-                                                        className="form-control-custom"
-                                                        value={formValues?.phone ?? ''}
-                                                        placeholder="10-digit number"
-                                                        onChange={e => setFormValues(v => ({ ...(v || {}), phone: e.target.value }))}
-                                                    />
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Designation</label>
-                                                    <input type="text" className="form-control-custom" value={formValues?.designation ?? ''} onChange={e => setFormValues(v => ({ ...(v || {}), designation: e.target.value }))} />
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Department</label>
-                                                    <input type="text" className="form-control-custom" value={formValues?.department ?? ''} onChange={e => setFormValues(v => ({ ...(v || {}), department: e.target.value }))} />
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Username</label>
-                                                    <input type="text" className="form-control-custom" value={formValues?.username ?? ''} placeholder="Optional username" onChange={e => setFormValues(v => ({ ...(v || {}), username: e.target.value }))} />
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Send Credentials</label>
-                                                    <div className="form-check form-switch">
-                                                        <input className="form-check-input" type="checkbox" checked={formValues?.sendCredentials || false} onChange={e => setFormValues(v => ({ ...(v || {}), sendCredentials: e.target.checked }))} />
-                                                    </div>
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Password</label>
-                                                    <input type="password" className="form-control-custom" value={formValues?.password ?? ''} placeholder="Enter password (optional)" onChange={e => setFormValues(v => ({ ...(v || {}), password: e.target.value }))} />
-                                                </div>
-                                                <div className="col-md-6">
-                                                    <label className="form-label-custom">Confirm Password</label>
-                                                    <input type="password" className="form-control-custom" value={formValues?.confirmPassword ?? ''} placeholder="Confirm password" onChange={e => setFormValues(v => ({ ...(v || {}), confirmPassword: e.target.value }))} />
-                                                </div>
-                                                <div className="col-md-4">
-                                                    <label className="form-label-custom">Status</label>
-                                                    <select className="form-control-custom" value={formValues?.status ?? 'Active'} onChange={e => setFormValues(v => ({ ...(v || {}), status: e.target.value }))}>
-                                                        <option>Active</option>
-                                                        <option>Inactive</option>
-                                                    </select>
-                                                </div>
-                                            </>}
-                                        
-                                            {/* ── Company Fields ── */}
-                                            {masterType === 'company' && <>
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Password</label>
+                                                <input type="password" className="form-control-custom" value={formValues?.password ?? ''} placeholder="Enter password (optional)" onChange={e => setFormValues(v => ({ ...(v || {}), password: e.target.value }))} />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Confirm Password</label>
+                                                <input type="password" className="form-control-custom" value={formValues?.confirmPassword ?? ''} placeholder="Confirm password" onChange={e => setFormValues(v => ({ ...(v || {}), confirmPassword: e.target.value }))} />
+                                            </div>
+                                            <div className="col-md-4">
+                                                <label className="form-label-custom">Status</label>
+                                                <select className="form-control-custom" value={formValues?.status ?? 'Active'} onChange={e => setFormValues(v => ({ ...(v || {}), status: e.target.value }))}>
+                                                    <option>Active</option>
+                                                    <option>Inactive</option>
+                                                </select>
+                                            </div>
+                                        </>}
+
+                                        {/* ── Company Fields ── */}
+                                        {masterType === 'company' && <>
                                             <div className="col-md-4">
                                                 <label className="form-label-custom">Company Code <span className="text-danger">*</span></label>
                                                 <input

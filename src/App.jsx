@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -15,6 +15,7 @@ import ProfileModal from './modals/ProfileModal';
 import SettingsModal from './modals/SettingsModal';
 import NotificationsModal from './modals/NotificationsModal';
 import Swal from 'sweetalert2';
+import { apiService } from './services/api';
 
 function App() {
   const [userRole, setUserRole] = useState('Super Admin'); // Simulating 'Super Admin' or 'Viewer'
@@ -25,13 +26,35 @@ function App() {
     company: [],
     bank: [],
     paymentMode: [],
-
     category: [],
     employee: []
-
   });
 
   const [accounts, setAccounts] = useState([]);
+
+  const fetchAllMasters = async () => {
+    try {
+      const [companies, banks, categories, modes] = await Promise.all([
+        apiService.get('/companies/all').catch(() => []),
+        apiService.get('/banks/all').catch(() => []),
+        apiService.get('/categories/all').catch(() => []),
+        apiService.get('/payment-modes/all').catch(() => [])
+      ]);
+      setMastersData({
+        company: companies,
+        bank: banks,
+        category: categories,
+        paymentMode: modes,
+        employee: [] // Employees usually fetched on demand in MastersPage
+      });
+    } catch (err) {
+      console.error("Error fetching masters:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllMasters();
+  }, []);
 
   const defaultSystemSettings = {
     general: {
@@ -127,9 +150,9 @@ function App() {
 
   return (
     <div className="app-container d-flex">
-      <Sidebar
-        activePage={activePage}
-        onPageChange={handlePageChange}
+      <Sidebar 
+        activePage={activePage} 
+        onPageChange={handlePageChange} 
         isCollapsed={isSidebarCollapsed}
         isShown={isSidebarShown}
         setIsSidebarShown={setIsSidebarShown}
@@ -137,52 +160,54 @@ function App() {
       />
 
       {/* Sidebar overlay for mobile - Always rendered for smooth CSS transition */}
-      <div
-        className={`sidebar-overlay ${isSidebarShown ? 'show' : ''}`}
+      <div 
+        className={`sidebar-overlay ${isSidebarShown ? 'show' : ''}`} 
         onClick={() => setIsSidebarShown(false)}
       ></div>
 
       <div className={`main-wrapper d-flex flex-column flex-grow-1 ${isSidebarCollapsed ? 'expanded' : ''}`} id="mainWrapper">
-        <Header
-          activePage={activePage}
-          toggleSidebar={toggleSidebar}
-          onPageChange={handlePageChange}
+        <Header 
+          activePage={activePage} 
+          toggleSidebar={toggleSidebar} 
+          onPageChange={handlePageChange} 
         />
 
         <main className="content-area flex-grow-1">
           {activePage === 'dashboard' ? (
-            <DashboardView
-              interns={interns}
-              onDelete={deleteIntern}
-              onEdit={editIntern}
+            <DashboardView 
+              interns={interns} 
+              onDelete={deleteIntern} 
+              onEdit={editIntern} 
               setActivePage={setActivePage}
             />
           ) : ['all-transactions', 'add-income', 'add-expense', 'transfer-money'].includes(activePage) ? (
-            <TransactionsPage activePage={activePage} userRole={userRole} />
+            <TransactionsPage activePage={activePage} userRole={userRole} mastersData={mastersData} accounts={accounts} refreshGlobalMasters={fetchAllMasters} />
           ) : ['all-accounts', 'add-account', 'account-statement'].includes(activePage) ? (
-            <AccountsPage
-              activePage={activePage}
-              setActivePage={setActivePage}
-              userRole={userRole}
+            <AccountsPage 
+              activePage={activePage} 
+              setActivePage={setActivePage} 
+              userRole={userRole} 
               mastersData={mastersData}
               accounts={accounts}
               setAccounts={setAccounts}
+              refreshGlobalMasters={fetchAllMasters}
             />
           ) : ['bank-statement', 'company-report', 'combined-report', 'date-wise-report'].includes(activePage) ? (
             <ReportsPage activePage={activePage} userRole={userRole} />
           ) : activePage === 'employee-master' ? (
-            <MastersPage
-              activePage={activePage}
-              userRole={userRole}
+            <MastersPage 
+              activePage={activePage} 
+              userRole={userRole} 
               mastersData={mastersData}
               setMastersData={setMastersData}
               accounts={accounts}
+              refreshGlobalMasters={fetchAllMasters}
             />
           ) : ['general-settings', 'preferences'].includes(activePage) ? (
             userRole === 'Super Admin' ? (
-              <SettingsPage
-                activePage={activePage}
-                userRole={userRole}
+              <SettingsPage 
+                activePage={activePage} 
+                userRole={userRole} 
                 systemSettings={systemSettings}
                 setSystemSettings={setSystemSettings}
                 defaultSystemSettings={defaultSystemSettings}
@@ -192,12 +217,13 @@ function App() {
             )
           ) : activePage.endsWith('-master') ? (
             userRole === 'Super Admin' ? (
-              <MastersPage
-                activePage={activePage}
-                userRole={userRole}
+              <MastersPage 
+                activePage={activePage} 
+                userRole={userRole} 
                 mastersData={mastersData}
                 setMastersData={setMastersData}
                 accounts={accounts}
+                refreshGlobalMasters={fetchAllMasters}
               />
             ) : (
               <DashboardView interns={interns} setActivePage={setActivePage} />
