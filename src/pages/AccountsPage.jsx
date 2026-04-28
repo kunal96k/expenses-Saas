@@ -19,11 +19,14 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         search: ''
     });
 
-    // API State
+    const [isLoading, setIsLoading] = useState(false);
+    const [totalElements, setTotalElements] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     // Pagination State restored for server-side pagination
     const [activeAccountStatement, setActiveAccountStatement] = useState(null);
+    const [statementData, setStatementData] = useState([]);
 
     // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
@@ -83,10 +86,10 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
     }, [currentPage, itemsPerPage, filters, sortConfig]);
 
     useEffect(() => {
-        if (!activeAccountStatement && (accounts || []).length) {
-            setActiveAccountStatement(accounts[0]);
-        }
-    }, [accounts]);
+
+    }, [activeAccountStatement]);
+
+
 
     const openModal = (modalName, account = null) => {
         setSelectedAccount(account);
