@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import Pagination from '../components/Pagination';
+import { apiService } from '../services/api';
 import './AccountsPage.css';
 
 const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accounts, setAccounts }) => {
@@ -18,22 +19,11 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         search: ''
     });
 
-    // Pagination State
+    // API State
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
-
-    // Reset pagination when filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [filters]);
-
-    const statementData = [
-        { id: 101, date: '2024-04-24', desc: 'Client Payment', fromTo: 'External → HDFC Main', type: 'Received', mode: 'Online', ref: 'TXN-1234', credit: 50000, debit: 0, balance: 1500000 },
-        { id: 102, date: '2024-04-23', desc: 'Server Hosting', fromTo: 'HDFC Main → External', type: 'Paid', mode: 'Online', ref: 'INV-445', credit: 0, debit: 12500, balance: 1487500 },
-        { id: 103, date: '2024-04-22', desc: 'Transfer to Petty Cash', fromTo: 'HDFC Main → Petty Cash', type: 'Moved', mode: 'Cash', ref: 'TRF-001', credit: 0, debit: 10000, balance: 1477500 }
-    ];
-
-    const [activeAccountStatement, setActiveAccountStatement] = useState((accounts || [])[0]);
+    // Pagination State restored for server-side pagination
+    const [activeAccountStatement, setActiveAccountStatement] = useState(null);
 
     // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
@@ -62,15 +52,41 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         else setActiveModal(null);
     }, [activePage]);
 
+    const fetchAccounts = async () => {
+        setIsLoading(true);
+        try {
+            const params = new URLSearchParams({
+                page: currentPage - 1,
+                size: itemsPerPage,
+                search: filters.search,
+                sortBy: sortConfig.key === 'company' ? 'company.name' : sortConfig.key,
+                direction: sortConfig.direction
+            });
+
+            if (filters.company !== 'all') params.append('companyId', filters.company);
+            if (filters.type !== 'all') params.append('type', filters.type);
+
+            const response = await apiService.get(`/accounts?${params.toString()}`);
+            setAccounts(response.content);
+            setTotalElements(response.totalElements);
+            setTotalPages(response.totalPages);
+        } catch (error) {
+            console.error('Error fetching accounts:', error);
+            // Swal.fire('Error', 'Failed to load accounts. ' + error.message, 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        if (!activeModal) setFormValues(null);
-    }, [activeModal]);
+        fetchAccounts();
+    }, [currentPage, itemsPerPage, filters, sortConfig]);
 
     useEffect(() => {
         if (!activeAccountStatement && (accounts || []).length) {
             setActiveAccountStatement(accounts[0]);
         }
-    }, [accounts, activeAccountStatement]);
+    }, [accounts]);
 
     const openModal = (modalName, account = null) => {
         setSelectedAccount(account);
@@ -120,7 +136,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         return (mastersData?.bank || []).filter(b => b.status === 'Active');
     }, [mastersData]);
 
-    const handleSaveAccount = () => {
+    const handleSaveAccount = async () => {
         if (!formValues) return;
 
         const companyIdNum = Number(formValues.companyId);
@@ -130,12 +146,10 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
 
         const next = {
             companyId: companyIdNum,
-            companyName: company?.name || '',
             code: (formValues.code || '').trim().toUpperCase(),
             name: (formValues.name || '').trim(),
             type: formValues.type || 'Bank',
             bankId: formValues.type === 'Bank' ? bankIdNum : null,
-            bankName: formValues.type === 'Bank' ? (bank?.name || '') : '-',
             accountNumber: (formValues.accountNumber || '').trim(),
             ifsc: (formValues.ifsc || '').trim().toUpperCase(),
             branch: (formValues.branch || '').trim(),
@@ -166,62 +180,29 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                 Swal.fire('Validation Error', 'Bank Name is required for Bank accounts.', 'error');
                 return;
             }
-            if (next.ifsc) {
-                const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-                if (!ifscRegex.test(next.ifsc)) {
-                    Swal.fire('Validation Error', 'IFSC Code is invalid. Expected format like HDFC0XXXXXX.', 'error');
-                    return;
-                }
+        }
+
+        try {
+            if (selectedAccount) {
+                await apiService.put(`/accounts/${selectedAccount.id}`, next);
+                Swal.fire('Updated', 'Account updated successfully.', 'success');
+            } else {
+                await apiService.post('/accounts', next);
+                Swal.fire('Saved', 'Account added successfully.', 'success');
             }
+            fetchAccounts();
+            closeModal();
+            setActivePage('all-accounts');
+        } catch (error) {
+            console.error('Error saving account:', error);
+            const errorMsg = error.errors 
+                ? Object.values(error.errors).join('\n') 
+                : error.message;
+            Swal.fire('Error', 'Failed to save account. ' + errorMsg, 'error');
         }
-
-        const existing = accounts || [];
-        const selectedId = selectedAccount?.id;
-        const sameCompanyCodeTaken = existing.some(a => a.id !== selectedId && a.companyId === next.companyId && (a.code || '').toUpperCase() === next.code);
-        if (sameCompanyCodeTaken) {
-            Swal.fire('Duplicate', 'Account Code must be unique per company.', 'error');
-            return;
-        }
-
-        const sameCompanyNameTaken = existing.some(a => a.id !== selectedId && a.companyId === next.companyId && (a.name || '').trim().toLowerCase() === next.name.toLowerCase());
-        if (sameCompanyNameTaken) {
-            Swal.fire('Duplicate', 'Account Name must be unique per company.', 'error');
-            return;
-        }
-
-        if (selectedAccount?.hasTransactions) {
-            if (Number(selectedAccount.openingBalance) !== next.openingBalance) {
-                Swal.fire('Not Allowed', '⚠ Opening balance cannot be changed after transactions exist.', 'error');
-                return;
-            }
-        }
-
-        if (selectedAccount) {
-            setAccounts(prev => prev.map(a => (a.id === selectedAccount.id ? { ...a, ...next } : a)));
-            Swal.fire('Updated', 'Account updated successfully.', 'success');
-        } else {
-            const nextId = existing.length ? Math.max(...existing.map(x => x.id || 0)) + 1 : 1;
-            setAccounts(prev => ([{
-                id: nextId,
-                ...next,
-                balance: next.openingBalance,
-                lastActivity: next.openingDate,
-                hasTransactions: false
-            }, ...prev]));
-            Swal.fire('Saved', 'Account added successfully.', 'success');
-        }
-
-        closeModal();
-        setActivePage('all-accounts');
     };
 
     const handleDelete = (id) => {
-        const account = accounts.find(a => a.id === id);
-        if (account?.hasTransactions) {
-            Swal.fire('Error!', '⚠ Cannot delete account with existing transactions. You may deactivate it instead.', 'error');
-            return;
-        }
-
         Swal.fire({
             title: 'Delete Account?',
             text: "This action cannot be undone!",
@@ -229,10 +210,16 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
             confirmButtonText: 'Yes, Delete'
-        }).then((result) => {
+        }).then(async (result) => {
             if (result.isConfirmed) {
-                setAccounts(accounts.filter(a => a.id !== id));
-                Swal.fire('Deleted!', 'Account has been removed.', 'success');
+                try {
+                    await apiService.delete(`/accounts/${id}`);
+                    fetchAccounts();
+                    Swal.fire('Deleted!', 'Account has been removed.', 'success');
+                } catch (error) {
+                    console.error('Error deleting account:', error);
+                    Swal.fire('Error', 'Failed to delete account. ' + error.message, 'error');
+                }
             }
         });
     };
@@ -320,34 +307,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         return { opening, totalCredit, totalDebit, closing };
     }, [activeAccountStatement, filteredStatementRows]);
 
-    const filteredAccounts = useMemo(() => {
-        let filtered = (accounts || []).filter(a => {
-            const bankText = (a.bankName || a.bank || '').toString();
-            const matchSearch = (a.name || '').toLowerCase().includes(filters.search.toLowerCase()) ||
-                (a.code || '').toLowerCase().includes(filters.search.toLowerCase()) ||
-                bankText.toLowerCase().includes(filters.search.toLowerCase());
-            const matchCompany = filters.company === 'all' || String(a.companyId) === filters.company;
-            const matchType = filters.type === 'all' || a.type === filters.type;
-            return matchSearch && matchCompany && matchType;
-        });
-
-        filtered.sort((a, b) => {
-            const aVal = sortConfig.key === 'company' ? (a.companyName || '') : a[sortConfig.key];
-            const bVal = sortConfig.key === 'company' ? (b.companyName || '') : b[sortConfig.key];
-            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-        });
-
-        return filtered;
-    }, [accounts, filters, sortConfig]);
-
-    // Pagination Logic
-    const totalPages = Math.ceil(filteredAccounts.length / itemsPerPage);
-    const paginatedAccounts = useMemo(() => {
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return filteredAccounts.slice(startIndex, startIndex + itemsPerPage);
-    }, [filteredAccounts, currentPage, itemsPerPage]);
+    const paginatedAccounts = accounts || [];
 
     const handleSort = (key) => {
         setSortConfig(prev => ({
@@ -358,7 +318,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
 
     return (
         <div className="accounts-container">
-            {activePage === 'account-statement' ? (
+            {activePage === 'account-statement' && activeAccountStatement ? (
                 // -----------------------
                 // STATEMENT SCREEN
                 // -----------------------
@@ -376,14 +336,14 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
 
                     <div className="statement-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-end gap-3">
                         <div>
-                            <span className="badge bg-white text-primary mb-2 px-3 py-2 border">{activeAccountStatement.companyName}</span>
-                            <h3 className="mb-0 fw-bold text-white">{activeAccountStatement.name}</h3>
+                            <span className="badge bg-white text-primary mb-2 px-3 py-2 border">{activeAccountStatement?.companyName || 'Account'}</span>
+                            <h3 className="mb-0 fw-bold text-white">{activeAccountStatement?.name || 'N/A'}</h3>
                             <p className="mb-0 text-white-50">
-                                {activeAccountStatement.type === 'Bank' ? <><i className="bi bi-bank me-1"></i> {activeAccountStatement.bankName}</> : <><i className="bi bi-cash-stack me-1"></i> Cash Account</>}
+                                {activeAccountStatement?.type === 'Bank' ? <><i className="bi bi-bank me-1"></i> {activeAccountStatement?.bankName || 'Bank'}</> : <><i className="bi bi-cash-stack me-1"></i> Cash Account</>}
                             </p>
                             <div className="d-flex flex-wrap gap-2 mt-2">
-                                <span className="badge bg-white text-dark border"><i className="bi bi-upc-scan me-1"></i> {activeAccountStatement.code}</span>
-                                <span className="badge bg-white text-dark border"><i className="bi bi-clock-history me-1"></i> Last Updated: {formatStatementDate(activeAccountStatement.lastActivity)}</span>
+                                <span className="badge bg-white text-dark border"><i className="bi bi-upc-scan me-1"></i> {activeAccountStatement?.code || 'N/A'}</span>
+                                <span className="badge bg-white text-dark border"><i className="bi bi-clock-history me-1"></i> Last Updated: {formatStatementDate(activeAccountStatement?.lastActivity)}</span>
                             </div>
                             <p className="mb-0 mt-2 small text-white-50"><i className="bi bi-info-circle me-1"></i> Balance is auto-calculated from transactions</p>
                         </div>
@@ -396,12 +356,12 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                         </div>
                                         <div>
                                             <p className="label mb-0">Opening Balance</p>
-                                            <span className="small text-white-50">{formatStatementDate(activeAccountStatement.openingDate)}</span>
+                                            <span className="small text-white-50">{formatStatementDate(activeAccountStatement?.openingDate)}</span>
                                         </div>
                                     </div>
-                                    <h4 className="value">₹{activeAccountStatement.openingBalance.toLocaleString('en-IN')}</h4>
+                                    <h4 className="value">₹{(activeAccountStatement?.openingBalance || 0).toLocaleString('en-IN')}</h4>
                                 </div>
-                                <div className={`balance-info-card ${activeAccountStatement.balance < 0 ? 'negative' : ''}`}>
+                                <div className={`balance-info-card ${(activeAccountStatement?.balance || 0) < 0 ? 'negative' : ''}`}>
                                     <div className="d-flex align-items-center gap-3 mb-2">
                                         <div className="icon-box-glass">
                                             <i className="bi bi-graph-up-arrow text-white-50"></i>
@@ -411,7 +371,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                             <span className="small text-white-50">Real-time</span>
                                         </div>
                                     </div>
-                                    <h4 className="value">₹{activeAccountStatement.balance.toLocaleString('en-IN')}</h4>
+                                    <h4 className="value">₹{(activeAccountStatement?.balance || 0).toLocaleString('en-IN')}</h4>
                                 </div>
                             </div>
                         </div>
@@ -489,8 +449,8 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                 <div className="px-2 pt-2 pb-1 text-muted small fw-semibold">Opening Balance</div>
                                 <div className="statement-opening-card mx-2 mb-2">
                                     <div className="d-flex justify-content-between align-items-center">
-                                        <div className="text-muted small">As of {formatStatementDate(activeAccountStatement.openingDate)}</div>
-                                        <div className="fw-bold">₹{activeAccountStatement.openingBalance.toLocaleString('en-IN')}</div>
+                                        <div className="text-muted small">As of {formatStatementDate(activeAccountStatement?.openingDate)}</div>
+                                        <div className="fw-bold">₹{(activeAccountStatement?.openingBalance || 0).toLocaleString('en-IN')}</div>
                                     </div>
                                 </div>
 
@@ -899,7 +859,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
 
                     <div className="mt-4">
                         <Pagination 
-                            totalItems={filteredAccounts.length}
+                            totalItems={totalElements}
                             itemsPerPage={itemsPerPage}
                             currentPage={currentPage}
                             onPageChange={setCurrentPage}

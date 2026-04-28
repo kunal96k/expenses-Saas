@@ -355,16 +355,17 @@
     width: 100%;
     padding: 0.75rem 1rem;
     border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
+    border: 1.5px solid #cbd5e1; /* Made darker and slightly thicker for visibility */
     background: #f8fafc;
     font-size: 0.95rem;
     transition: all 0.2s;
+    color: #1e293b;
 }
 
 .form-control-custom:focus {
     background: #fff;
     border-color: #5c67f2;
-    box-shadow: 0 0 0 4px rgba(92, 103, 242, 0.1);
+    box-shadow: 0 0 0 4px rgba(92, 103, 242, 0.15);
     outline: none;
 }
 
