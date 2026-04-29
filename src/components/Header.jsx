@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
+import Swal from 'sweetalert2';
+import { apiService } from '../services/api';
 
-const Header = ({ activePage, toggleSidebar, onPageChange }) => {
+const Header = ({ activePage, toggleSidebar, onPageChange, onLogout, userRole, userProfile, setUserProfile }) => {
   const [isDropdownShow, setIsDropdownShow] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileMode, setProfileMode] = useState('view'); // 'view' or 'edit'
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({});
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+
+  const displayName = userProfile?.name || 'User';
+  const displayRole = userRole || 'Viewer';
+  const displayEmail = userProfile?.email || '-';
+  const displayPhone = userProfile?.phone || '-';
+  const displayDesignation = userProfile?.designation || '-';
+  const displayEmpCode = userProfile?.empCode || '-';
+  const displayLastLogin = userProfile?.lastLogin ? new Date(userProfile.lastLogin).toLocaleString() : '-';
+  const avatarName = encodeURIComponent(displayName);
 
   const pageTitles = {
     'dashboard':           'Dashboard Overview',
@@ -46,17 +59,28 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
             }).then(result => {
               if (result.isConfirmed) {
                 Swal.fire({ icon: 'success', title: 'Logged out!', text: 'Session ended.', timer: 1500, showConfirmButton: false });
-                setTimeout(() => window.location.reload(), 1500);
+                setTimeout(() => {
+                  onLogout?.();
+                }, 600);
               }
             });
         } else if (action === 'my-profile') {
             setProfileMode('view');
+            setProfileForm({
+              name: userProfile?.name || '',
+              email: userProfile?.email || '',
+              phone: userProfile?.phone || '',
+              designation: userProfile?.designation || '',
+              department: userProfile?.department || '',
+              username: userProfile?.username || ''
+            });
             setShowProfileModal(true);
         } else if (action === 'general-settings') {
             if (onPageChange) onPageChange('general-settings');
         } else if (action === 'preferences') {
             if (onPageChange) onPageChange('preferences');
         } else if (action === 'reset-password') {
+            setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
             setShowPasswordModal(true);
         } else if (action === 'help-and-support') {
             setShowHelpModal(true);
@@ -75,6 +99,28 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
   const handleBlur = (e) => {
     if (!e.currentTarget.contains(e.relatedTarget)) {
       setTimeout(() => setIsDropdownShow(false), 150);
+    }
+  };
+
+  const handleProfileSave = async () => {
+    try {
+      const updated = await apiService.patch('/auth/me/profile', profileForm || {});
+      setUserProfile?.(updated);
+      setProfileMode('view');
+      Swal.fire({ icon: 'success', title: 'Profile updated', timer: 1200, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire('Update failed', err?.message || 'Unable to update profile', 'error');
+    }
+  };
+
+  const handlePasswordSave = async () => {
+    try {
+      await apiService.patch('/auth/me/password', passwordForm);
+      setShowPasswordModal(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      Swal.fire({ icon: 'success', title: 'Password updated', timer: 1200, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire('Update failed', err?.message || 'Unable to update password', 'error');
     }
   };
 
@@ -104,13 +150,13 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
             aria-expanded={isDropdownShow}
           >
             <img
-              src="https://ui-avatars.com/api/?name=Kunal+Patil&background=5c67f2&color=fff&bold=true"
+              src={`https://ui-avatars.com/api/?name=${avatarName}&background=5c67f2&color=fff&bold=true`}
               alt="User"
               className="user-avatar"
             />
             <div className="user-details d-none d-sm-block">
-              <span className="user-name">Kunal Patil</span>
-              <span className="user-role">Super Admin</span>
+              <span className="user-name">{displayName}</span>
+              <span className="user-role">{displayRole}</span>
             </div>
             <i className={`bi bi-chevron-down dropdown-arrow ${isDropdownShow ? 'rotate-180' : ''}`} style={{ transition: 'transform 0.2s' }}></i>
           </button>
@@ -118,10 +164,10 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
           <div className={`user-dropdown-menu ${isDropdownShow ? 'show' : ''}`} style={{ borderRadius: '16px', border: '1px solid #f1f5f9', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', padding: '8px' }}>
             <div className="dropdown-header" style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: '10px', marginBottom: '8px' }}>
               <div className="d-flex align-items-center gap-3">
-                <img src="https://ui-avatars.com/api/?name=Kunal+Patil&background=5c67f2&color=fff&bold=true" alt="User" className="rounded-circle" style={{ width: '40px', height: '40px' }} />
+                <img src={`https://ui-avatars.com/api/?name=${avatarName}&background=5c67f2&color=fff&bold=true`} alt="User" className="rounded-circle" style={{ width: '40px', height: '40px' }} />
                 <div>
-                  <h6 className="mb-0 fw-bold" style={{ color: '#0f172a' }}>Kunal Patil</h6>
-                  <p className="mb-0 text-muted" style={{ fontSize: '0.75rem' }}>kunal.patil@technokraft.com</p>
+                  <h6 className="mb-0 fw-bold" style={{ color: '#0f172a' }}>{displayName}</h6>
+                  <p className="mb-0 text-muted" style={{ fontSize: '0.75rem' }}>{displayEmail}</p>
                 </div>
               </div>
             </div>
@@ -130,10 +176,14 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
               <i className="bi bi-person-circle text-primary me-3"></i>
               <span>My Profile</span>
             </a>
-            <a href="#" className="dropdown-item rounded-3 mb-1" style={{ padding: '10px 16px', fontWeight: '600' }} onClick={e => { e.preventDefault(); handleAction('general-settings'); }}>
-              <i className="bi bi-gear text-secondary me-3"></i>
-              <span>General Settings</span>
-            </a>
+            {userRole !== 'Viewer' && (
+              <>
+                <a href="#" className="dropdown-item rounded-3 mb-1" style={{ padding: '10px 16px', fontWeight: '600' }} onClick={e => { e.preventDefault(); handleAction('general-settings'); }}>
+                  <i className="bi bi-gear text-secondary me-3"></i>
+                  <span>General Settings</span>
+                </a>
+              </>
+            )}
             <a href="#" className="dropdown-item rounded-3 mb-1" style={{ padding: '10px 16px', fontWeight: '600' }} onClick={e => { e.preventDefault(); handleAction('preferences'); }}>
               <i className="bi bi-sliders text-secondary me-3"></i>
               <span>Preferences</span>
@@ -142,11 +192,15 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
               <i className="bi bi-key text-warning me-3"></i>
               <span>Reset Password</span>
             </a>
-            <div className="dropdown-divider my-2"></div>
-            <a href="#" className="dropdown-item rounded-3 mb-1" style={{ padding: '10px 16px', fontWeight: '600' }} onClick={e => { e.preventDefault(); handleAction('help-and-support'); }}>
-              <i className="bi bi-question-circle text-info me-3"></i>
-              <span>Help & Support</span>
-            </a>
+            {userRole !== 'Viewer' && (
+              <>
+                <div className="dropdown-divider my-2"></div>
+                <a href="#" className="dropdown-item rounded-3 mb-1" style={{ padding: '10px 16px', fontWeight: '600' }} onClick={e => { e.preventDefault(); handleAction('help-and-support'); }}>
+                  <i className="bi bi-question-circle text-info me-3"></i>
+                  <span>Help & Support</span>
+                </a>
+              </>
+            )}
             <div className="dropdown-divider my-2"></div>
             <a href="#" className="dropdown-item danger rounded-3" style={{ padding: '10px 16px', fontWeight: '600', color: '#dc2626' }} onClick={e => { e.preventDefault(); handleAction('logout'); }}>
               <i className="bi bi-box-arrow-right me-3"></i>
@@ -169,13 +223,13 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
                         </div>
                         <div className="modal-body text-center px-4 pb-4 pt-0" style={{ zIndex: 1, position: 'relative' }}>
                             <div className="mb-3 position-relative d-inline-block">
-                                <img src="https://ui-avatars.com/api/?name=Kunal+Patil&background=fff&color=5c67f2&bold=true&size=120" alt="Profile" className="rounded-circle shadow-sm" style={{ border: '4px solid #0f172a', marginTop: '40px' }} />
+                                <img src={`https://ui-avatars.com/api/?name=${avatarName}&background=fff&color=5c67f2&bold=true&size=120`} alt="Profile" className="rounded-circle shadow-sm" style={{ border: '4px solid #0f172a', marginTop: '40px' }} />
                                 <span className="position-absolute bottom-0 end-0 p-2 bg-success border border-light rounded-circle" style={{ width: '20px', height: '20px' }}>
                                     <span className="visually-hidden">Active</span>
                                 </span>
                             </div>
-                            <h4 className="fw-bold mb-1">Kunal Patil</h4>
-                            <p className="text-muted mb-4">{profileMode === 'edit' ? 'Edit Your Details' : 'Super Admin'}</p>
+                            <h4 className="fw-bold mb-1">{displayName}</h4>
+                            <p className="text-muted mb-4">{profileMode === 'edit' ? 'Edit Your Details' : displayRole}</p>
                             
                             {profileMode === 'view' ? (
                                 <div className="row g-3 text-start mb-4">
@@ -185,21 +239,21 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
                                                 <div className="bg-white p-2 rounded-circle shadow-sm me-3 text-primary d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}><i className="bi bi-person-badge"></i></div>
                                                 <div>
                                                     <small className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Employee ID</small>
-                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>EMP-001</span>
+                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>{displayEmpCode}</span>
                                                 </div>
                                             </div>
                                             <div className="d-flex align-items-center mb-3">
                                                 <div className="bg-white p-2 rounded-circle shadow-sm me-3 text-primary d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}><i className="bi bi-envelope-fill"></i></div>
                                                 <div>
                                                     <small className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Email</small>
-                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>kunal.patil@technokraft.com</span>
+                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>{displayEmail}</span>
                                                 </div>
                                             </div>
                                             <div className="d-flex align-items-center">
                                                 <div className="bg-white p-2 rounded-circle shadow-sm me-3 text-primary d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}><i className="bi bi-telephone-fill"></i></div>
                                                 <div>
                                                     <small className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Phone</small>
-                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>+91 98765 43210</span>
+                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>{displayPhone}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -210,7 +264,7 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
                                                 <div className="bg-white p-2 rounded-circle shadow-sm me-3 text-info d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}><i className="bi bi-award"></i></div>
                                                 <div>
                                                     <small className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Designation</small>
-                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>Director</span>
+                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>{displayDesignation}</span>
                                                 </div>
                                             </div>
                                             <div className="d-flex align-items-center mb-3">
@@ -224,7 +278,7 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
                                                 <div className="bg-white p-2 rounded-circle shadow-sm me-3 text-secondary d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}><i className="bi bi-clock-history"></i></div>
                                                 <div>
                                                     <small className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Last Login</small>
-                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>Today, 10:30 AM</span>
+                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>{displayLastLogin}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -234,21 +288,25 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
                             ) : (
                                 <div className="text-start mb-4">
                                     <div className="row g-3">
-                                        <div className="col-md-6">
-                                            <label className="form-label small fw-bold text-muted">First Name</label>
-                                            <input type="text" className="form-control rounded-3" defaultValue="Kunal" />
-                                        </div>
-                                        <div className="col-md-6">
-                                            <label className="form-label small fw-bold text-muted">Last Name</label>
-                                            <input type="text" className="form-control rounded-3" defaultValue="Patil" />
+                                        <div className="col-md-12">
+                                            <label className="form-label small fw-bold text-muted">Name</label>
+                                            <input type="text" className="form-control rounded-3" value={profileForm.name || ''} onChange={(e) => setProfileForm(prev => ({ ...prev, name: e.target.value }))} />
                                         </div>
                                         <div className="col-md-6">
                                             <label className="form-label small fw-bold text-muted">Email</label>
-                                            <input type="email" className="form-control rounded-3" defaultValue="kunal.patil@technokraft.com" />
+                                            <input type="email" className="form-control rounded-3" value={profileForm.email || ''} onChange={(e) => setProfileForm(prev => ({ ...prev, email: e.target.value }))} />
                                         </div>
                                         <div className="col-md-6">
                                             <label className="form-label small fw-bold text-muted">Phone Number</label>
-                                            <input type="text" className="form-control rounded-3" defaultValue="+91 98765 43210" />
+                                            <input type="text" className="form-control rounded-3" value={profileForm.phone || ''} onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))} />
+                                        </div>
+                                        <div className="col-md-6">
+                                            <label className="form-label small fw-bold text-muted">Designation</label>
+                                            <input type="text" className="form-control rounded-3" value={profileForm.designation || ''} onChange={(e) => setProfileForm(prev => ({ ...prev, designation: e.target.value }))} />
+                                        </div>
+                                        <div className="col-md-6">
+                                            <label className="form-label small fw-bold text-muted">Department</label>
+                                            <input type="text" className="form-control rounded-3" value={profileForm.department || ''} onChange={(e) => setProfileForm(prev => ({ ...prev, department: e.target.value }))} />
                                         </div>
                                     </div>
                                 </div>
@@ -263,7 +321,7 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
                             ) : (
                                 <>
                                     <button type="button" className="btn btn-light px-4 rounded-pill fw-bold border" onClick={() => setProfileMode('view')}>Cancel</button>
-                                    <button type="button" className="btn btn-success px-4 rounded-pill fw-bold border-0 shadow-sm" onClick={() => setProfileMode('view')}>Save Changes</button>
+                                    <button type="button" className="btn btn-success px-4 rounded-pill fw-bold border-0 shadow-sm" onClick={handleProfileSave}>Save Changes</button>
                                 </>
                             )}
                         </div>
@@ -287,17 +345,17 @@ const Header = ({ activePage, toggleSidebar, onPageChange }) => {
                         <div className="modal-body px-4 pt-3 pb-4">
                             <div className="mb-3">
                                 <label className="form-label small fw-bold text-muted">Current Password</label>
-                                <input type="password" className="form-control rounded-3 bg-light border-0" placeholder="Enter current password" />
+                                <input type="password" className="form-control rounded-3 bg-light border-0" placeholder="Enter current password" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))} />
                             </div>
                             <div className="mb-3">
                                 <label className="form-label small fw-bold text-muted">New Password</label>
-                                <input type="password" className="form-control rounded-3 bg-light border-0" placeholder="Enter new password" />
+                                <input type="password" className="form-control rounded-3 bg-light border-0" placeholder="Enter new password" value={passwordForm.newPassword} onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))} />
                             </div>
                             <div className="mb-4">
                                 <label className="form-label small fw-bold text-muted">Confirm New Password</label>
-                                <input type="password" className="form-control rounded-3 bg-light border-0" placeholder="Re-enter new password" />
+                                <input type="password" className="form-control rounded-3 bg-light border-0" placeholder="Re-enter new password" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))} />
                             </div>
-                            <button type="button" className="btn w-100 rounded-pill fw-bold text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #5c67f2, #4a54e1)' }} onClick={() => setShowPasswordModal(false)}>Update Password</button>
+                            <button type="button" className="btn w-100 rounded-pill fw-bold text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #5c67f2, #4a54e1)' }} onClick={handlePasswordSave}>Update Password</button>
                         </div>
                     </div>
                 </div>

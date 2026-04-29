@@ -28,6 +28,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [totalElements, setTotalElements] = useState(0);
     const [localData, setLocalData] = useState([]);
+    const canManage = userRole === 'Super Admin';
 
     const getApiEndpoint = (type) => {
 
@@ -64,7 +65,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     const refreshGlobalMasters = async () => {
         try {
             const endpoint = getApiEndpoint(masterType);
-            const response = await apiService.get(`${endpoint}/all`);
+            const response = await apiService.getAllPages(endpoint);
             const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
             setMastersData(prev => ({ ...prev, [dataKey]: response }));
         } catch (err) {
@@ -93,6 +94,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     // We now use localData directly from the server-side response
 
     const handleToggleStatus = async (id) => {
+        if (!canManage) return;
         const endpoint = getApiEndpoint(masterType);
         try {
             await apiService.patch(`${endpoint}/${id}/toggle-status`);
@@ -107,6 +109,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
 
     const handleDelete = (id) => {
+        if (!canManage) return;
         const dataKey = masterType === 'payment-mode' ? 'paymentMode' : masterType;
         const isLinked = (dataKey === 'company' && isCompanyLinked(id)) || (dataKey === 'bank' && isBankLinked(id));
 
@@ -137,6 +140,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
     const handleResetPassword = (id) => {
+        if (!canManage) return;
         Swal.fire({
             title: 'Reset Password',
             html: `<input id="swal-input1" class="swal2-input" type="password" placeholder="New password">` +
@@ -154,7 +158,6 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         }).then(async (res) => {
             if (res.isConfirmed && res.value) {
                 try {
-                    const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
                     await apiService.patch(`/employees/${id}/reset-password`, { newPassword: res.value.newPassword, sendEmail: res.value.sendEmail });
                     Swal.fire({ icon: 'success', title: 'Password reset', timer: 1200, showConfirmButton: false });
                     await fetchData();
@@ -167,6 +170,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
     const handleResetUsername = (id) => {
+        if (!canManage) return;
         Swal.fire({
             title: 'Reset Username',
             input: 'text',
@@ -181,7 +185,6 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
             if (res.isConfirmed) {
                 const sendEmail = await Swal.fire({ title: 'Send email with new username?', showCancelButton: true, confirmButtonText: 'Yes', cancelButtonText: 'No' });
                 try {
-                    const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
                     await apiService.patch(`/employees/${id}/reset-username`, { newUsername: res.value, sendEmail: sendEmail.isConfirmed });
                     Swal.fire({ icon: 'success', title: 'Username updated', timer: 1200, showConfirmButton: false });
                     await fetchData();
@@ -194,6 +197,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
     const handleEditDetails = (item) => {
+        if (!canManage) return;
         setSelectedItem(item);
         setDetailsFormValues({
             name: item.name || '',
@@ -207,13 +211,13 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
     const handleUpdateDetails = async () => {
-        if (!detailsFormValues.name || !detailsFormValues.email) {
-            Swal.fire('Validation', 'Name and email are required', 'error');
+        if (!canManage) return;
+        if (!detailsFormValues || Object.values(detailsFormValues).every(v => v === '' || v === null || typeof v === 'undefined')) {
+            Swal.fire('Validation', 'Enter at least one value to update', 'error');
             return;
         }
         try {
-            const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
-            await apiService.put(`/employees/${selectedItem.id}/details`, detailsFormValues);
+            await apiService.patch(`/employees/${selectedItem.id}/details`, detailsFormValues);
             Swal.fire({ icon: 'success', title: 'Details updated', timer: 1200, showConfirmButton: false });
             setShowDetailsModal(false);
             await fetchData();
@@ -224,6 +228,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
     const handleEditCredentials = (item) => {
+        if (!canManage) return;
         setSelectedItem(item);
         setCredentialsFormValues({
             username: item.username || '',
@@ -234,6 +239,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
     const handleUpdateCredentials = async () => {
+        if (!canManage) return;
         if (!credentialsFormValues.username && !credentialsFormValues.password) {
             Swal.fire('Validation', 'Enter at least username or password to update', 'error');
             return;
@@ -247,7 +253,6 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
             return;
         }
         try {
-            const headers = { 'X-Acting-User-Id': localStorage.getItem('actingUserId') || '1' };
             await apiService.patch(`/employees/${selectedItem.id}/credentials`, {
                 username: credentialsFormValues.username,
                 password: credentialsFormValues.password,
@@ -264,6 +269,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
 
     const openModal = (item = null) => {
+        if (!canManage) return;
         setSelectedItem(item);
         if (masterType === 'employee') {
             setFormValues({
@@ -274,6 +280,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                 designation: item?.designation || '',
                 department: item?.department || '',
                 status: item?.status || 'Active',
+                role: (item?.role || 'VIEWER').toUpperCase(),
                 username: item?.username || '',
                 password: '',
                 confirmPassword: '',
@@ -339,6 +346,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
     const handleSave = async () => {
+        if (!canManage) return;
         const endpoint = getApiEndpoint(masterType);
 
         if (masterType === 'company') {
@@ -418,6 +426,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                 designation: (formValues?.designation || '').trim(),
                 department: (formValues?.department || '').trim(),
                 status: formValues?.status || 'Active',
+                role: (formValues?.role || 'VIEWER').toUpperCase(),
                 username: formValues?.username || undefined,
                 password: formValues?.password || undefined,
                 sendCredentials: formValues?.sendCredentials || false
@@ -533,9 +542,9 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                     <h2 className="master-title">{masterTitles[masterType] || 'Master'}</h2>
                     <p className="master-subtitle">Manage configuration data used across the entire system.</p>
                 </div>
-                <button className="btn-primary-custom" onClick={() => openModal()}>
+                <button className="btn-primary-custom" onClick={() => openModal()} disabled={!canManage}>
                     <i className="bi bi-plus-lg"></i>
-                    Add New
+                    {canManage ? 'Add New' : 'View Only'}
                 </button>
             </div>
 
@@ -570,7 +579,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                             <thead>
                                 <tr>
                                     <th className="col-sr">#</th>
-                                    {masterType === 'employee' && <><th>Emp Code</th><th>Name</th><th>Email</th><th>Username</th></>}
+                                    {masterType === 'employee' && <><th>Emp Code</th><th>Name</th><th>Email</th><th>Role</th><th>Username</th></>}
                                     {masterType === 'company' && <>
                                         <th>Code</th>
                                         <th>Company Name</th>
@@ -615,6 +624,10 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                             <td><code className="master-code-badge">{item.empCode}</code></td>
                                             <td className="fw-semibold" style={{ color: '#0f172a' }}>{item.name}</td>
                                             <td className="small text-muted">{item.email || '—'}</td>
+                                            <td>
+                                                <span className={`status-badge ${item.role === 'SUPERADMIN' ? 'status-credit' : 'status-debit'}`}>{item.role || 'VIEWER'}</span>
+                                                {Boolean(item.isSuperior) && <span className="ms-2 badge bg-dark-subtle text-dark">Superior</span>}
+                                            </td>
                                             <td className="small text-muted">{item.username || '—'}</td>
                                         </>}
                                         {masterType === 'company' && <>
@@ -647,14 +660,14 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                         <td className="text-center">
                                             <div className="status-toggle-cell">
                                                 <div className="form-check form-switch d-inline-block mb-0">
-                                                    <input className="form-check-input" type="checkbox" checked={item.status === 'Active'} onChange={() => handleToggleStatus(item.id)} style={{ cursor: 'pointer' }} />
+                                                    <input className="form-check-input" type="checkbox" checked={item.status === 'Active'} onChange={() => handleToggleStatus(item.id)} style={{ cursor: canManage ? 'pointer' : 'not-allowed' }} disabled={!canManage} />
                                                 </div>
                                                 <div className={`status-text-pill ${item.status.toLowerCase()}`}>{item.status}</div>
                                             </div>
                                         </td>
                                         <td>
                                             <div className="action-btns">
-                                                {masterType === 'employee' && (
+                                                {canManage && masterType === 'employee' && (
                                                     <>
                                                         <button className="btn-icon" onClick={() => handleEditDetails(item)} title="Edit Details (Profile)"><i className="bi bi-person-check"></i></button>
                                                         <button className="btn-icon" onClick={() => handleEditCredentials(item)} title="Update Credentials (Username/Password)"><i className="bi bi-key"></i></button>
@@ -662,10 +675,11 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                                         <button className="btn-icon" onClick={() => handleResetUsername(item.id)} title="Reset Username"><i className="bi bi-person-gear"></i></button>
                                                     </>
                                                 )}
-                                                {masterType !== 'employee' && (
+                                                {canManage && masterType !== 'employee' && (
                                                     <button className="btn-icon" onClick={() => openModal(item)} title="Edit"><i className="bi bi-pencil"></i></button>
                                                 )}
-                                                <button className="btn-icon text-danger" onClick={() => handleDelete(item.id)} title="Delete"><i className="bi bi-trash"></i></button>
+                                                {canManage && <button className="btn-icon text-danger" onClick={() => handleDelete(item.id)} title="Delete"><i className="bi bi-trash"></i></button>}
+                                                {!canManage && <span className="small text-muted">View only</span>}
                                             </div>
                                         </td>
                                     </tr>
@@ -693,6 +707,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                     {masterType === 'bank' && <span className="mcard-name">{item.name}</span>}
                                     {masterType === 'payment-mode' && <span className="mcard-name">{item.name}</span>}
                                     {masterType === 'category' && <span className="mcard-name">{item.name}</span>}
+                                    {masterType === 'employee' && <><span className="mcard-code">{item.empCode || 'EMP'}</span><span className="mcard-name">{item.name || '-'}</span></>}
                                 </div>
                                 <div className={`mcard-status-dot ${item.status === 'Active' ? 'dot-active' : 'dot-inactive'}`} title={item.status}></div>
                             </div>
@@ -717,6 +732,11 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                 {masterType === 'category' && <>
                                     <div className="mcard-row"><span className="mcard-label">Type</span><span className="mcard-value"><span className={`status-badge ${item.type === 'Income' ? 'status-credit' : 'status-debit'}`}>{item.type}</span></span></div>
                                 </>}
+                                {masterType === 'employee' && <>
+                                    <div className="mcard-row"><span className="mcard-label">Email</span><span className="mcard-value">{item.email || '—'}</span></div>
+                                    <div className="mcard-row"><span className="mcard-label">Role</span><span className="mcard-value">{item.role || 'VIEWER'}{Boolean(item.isSuperior) ? ' (Superior)' : ''}</span></div>
+                                    <div className="mcard-row"><span className="mcard-label">Username</span><span className="mcard-value">{item.username || '—'}</span></div>
+                                </>}
                             </div>
 
                             {/* Card Footer — Status + Actions */}
@@ -725,18 +745,34 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                     <span className="mcard-label">Status</span>
                                     <div className="d-flex align-items-center gap-2">
                                         <div className="form-check form-switch mb-0">
-                                            <input className="form-check-input" type="checkbox" checked={item.status === 'Active'} onChange={() => handleToggleStatus(item.id)} style={{ cursor: 'pointer' }} />
+                                            <input className="form-check-input" type="checkbox" checked={item.status === 'Active'} onChange={() => handleToggleStatus(item.id)} style={{ cursor: canManage ? 'pointer' : 'not-allowed' }} disabled={!canManage} />
                                         </div>
                                         <span className={`status-text-pill ${item.status.toLowerCase()}`}>{item.status}</span>
                                     </div>
                                 </div>
                                 <div className="mcard-actions">
-                                    <button className="mcard-btn mcard-btn-edit" onClick={() => openModal(item)}>
-                                        <i className="bi bi-pencil me-1"></i>Edit
-                                    </button>
-                                    <button className="mcard-btn mcard-btn-delete" onClick={() => handleDelete(item.id)}>
-                                        <i className="bi bi-trash me-1"></i>Delete
-                                    </button>
+                                    {canManage && masterType === 'employee' && (
+                                        <>
+                                            <button className="mcard-btn mcard-btn-edit" onClick={() => handleEditDetails(item)}><i className="bi bi-person-check me-1"></i>Details</button>
+                                            <button className="mcard-btn mcard-btn-edit" onClick={() => handleEditCredentials(item)}><i className="bi bi-key me-1"></i>Credentials</button>
+                                            <button className="mcard-btn mcard-btn-edit" onClick={() => handleResetPassword(item.id)}><i className="bi bi-arrow-clockwise me-1"></i>Password</button>
+                                            <button className="mcard-btn mcard-btn-edit" onClick={() => handleResetUsername(item.id)}><i className="bi bi-person-gear me-1"></i>Username</button>
+                                            <button className="mcard-btn mcard-btn-delete" onClick={() => handleDelete(item.id)}><i className="bi bi-trash me-1"></i>Delete</button>
+                                        </>
+                                    )}
+                                    {canManage && masterType !== 'employee' && (
+                                        <>
+                                            <button className="mcard-btn mcard-btn-edit" onClick={() => openModal(item)}>
+                                                <i className="bi bi-pencil me-1"></i>Edit
+                                            </button>
+                                            <button className="mcard-btn mcard-btn-delete" onClick={() => handleDelete(item.id)}>
+                                                <i className="bi bi-trash me-1"></i>Delete
+                                            </button>
+                                        </>
+                                    )}
+                                    {!canManage && (
+                                        <div className="mcard-view-only text-muted small">Viewer role: read-only access</div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -837,6 +873,13 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                             <div className="col-md-6">
                                                 <label className="form-label-custom">Username</label>
                                                 <input type="text" className="form-control-custom" value={formValues?.username ?? ''} placeholder="Optional username" onChange={e => setFormValues(v => ({ ...(v || {}), username: e.target.value }))} />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label-custom">Role</label>
+                                                <select className="form-control-custom" value={(formValues?.role ?? 'VIEWER').toUpperCase()} onChange={e => setFormValues(v => ({ ...(v || {}), role: e.target.value }))}>
+                                                    <option value="VIEWER">Viewer</option>
+                                                    <option value="SUPERADMIN">Super Admin</option>
+                                                </select>
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="form-label-custom">Send Credentials</label>

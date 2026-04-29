@@ -1133,7 +1133,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                     <div className="mt-5 d-flex gap-2">
                                         <button className="btn btn-light px-4" onClick={closeModal}>Cancel</button>
                                         <button className="btn btn-primary-custom flex-grow-1 py-3" onClick={handleSaveAccount}>
-                                            <i className="bi bi-check-lg me-2"></i> Save Account Configuration
+                                            <i className="bi bi-check-lg me-2"></i> Save Account
                                         </button>
                                     </div>
                                 </div>

@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
 
-const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarShown, userRole }) => {
+const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarShown, userRole, onLogout }) => {
+  const viewerAllowedSubmodules = new Set([
+    'all-transactions',
+    'all-accounts',
+    'account-statement',
+    'bank-statement',
+    'company-report',
+    'combined-report',
+    'date-wise-report',
+    'preferences'
+  ]);
+
   const [expandedMenus, setExpandedMenus] = useState({
     transactions: true,
     accounts: false,
@@ -90,6 +101,7 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
       confirmButtonText: 'Yes, logout'
     }).then((result) => {
       if (result.isConfirmed) {
+        onLogout?.();
         Swal.fire('Logged out!', 'You have been logged out successfully', 'success');
       }
     });
@@ -114,10 +126,16 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
         {menuStructure
           .filter(item => {
             if (userRole === 'Viewer') {
-              return !['users', 'masters', 'settings'].includes(item.id);
+              return !['users', 'masters'].includes(item.id);
             }
             return true;
           })
+          .map(item => ({
+            ...item,
+            submodules: userRole === 'Viewer'
+              ? item.submodules.filter(sub => viewerAllowedSubmodules.has(sub.id))
+              : item.submodules
+          }))
           .map((item) => (
           <li key={item.id}>
             <a 

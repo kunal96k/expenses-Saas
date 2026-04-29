@@ -176,6 +176,8 @@
     gap: 6px;
     justify-content: flex-end;
     align-items: center;
+    flex-wrap: wrap;
+    max-width: 280px;
 }
 
 .btn-icon {
@@ -518,8 +520,18 @@
 /* Action Buttons Row */
 .mcard-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 8px;
+}
+
+.mcard-view-only {
+    grid-column: 1 / -1;
+    text-align: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    padding: 9px 10px;
+    font-weight: 600;
 }
 
 .mcard-btn {

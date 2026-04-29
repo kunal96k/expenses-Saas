@@ -4,6 +4,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import DashboardView from './views/DashboardView';
 import EmptyView from './views/EmptyView';
+import LoginView from './views/LoginView';
 import TransactionsPage from './pages/TransactionsPage';
 import AccountsPage from './pages/AccountsPage.jsx';
 import ReportsPage from './pages/ReportsPage';
@@ -18,7 +19,21 @@ import Swal from 'sweetalert2';
 import { apiService } from './services/api';
 
 function App() {
-  const [userRole, setUserRole] = useState('Super Admin'); // Simulating 'Super Admin' or 'Viewer'
+  const SETTINGS_STORAGE_KEY = 'expenses_system_settings';
+  const mapRoleLabel = (rawRole) => {
+    const role = String(rawRole || 'VIEWER').toUpperCase();
+    if (role === 'SUPERADMIN') return 'Super Admin';
+    if (role === 'SUPERIOR_SUPERADMIN' || role === 'SUPERIOR SUPERADMIN') return 'Superior Super Admin';
+    return 'Viewer';
+  };
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem('expenses_basic_auth'));
+    } catch {
+      return false;
+    }
+  });
+  const [userRole, setUserRole] = useState('Viewer');
   const [activePage, setActivePage] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarShown, setIsSidebarShown] = useState(false);
@@ -31,14 +46,15 @@ function App() {
   });
 
   const [accounts, setAccounts] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
 
   const fetchAllMasters = async () => {
     try {
       const [companies, banks, categories, modes] = await Promise.all([
-        apiService.get('/companies/all').catch(() => []),
-        apiService.get('/banks/all').catch(() => []),
-        apiService.get('/categories/all').catch(() => []),
-        apiService.get('/payment-modes/all').catch(() => [])
+        apiService.getAllPages('/companies').catch(() => []),
+        apiService.getAllPages('/banks').catch(() => []),
+        apiService.getAllPages('/categories').catch(() => []),
+        apiService.getAllPages('/payment-modes').catch(() => [])
       ]);
       setMastersData({
         company: companies,
@@ -53,8 +69,9 @@ function App() {
   };
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     fetchAllMasters();
-  }, []);
+  }, [isAuthenticated]);
 
   const defaultSystemSettings = {
     general: {
@@ -91,9 +108,23 @@ function App() {
     }
   };
 
-  const [systemSettings, setSystemSettings] = useState(defaultSystemSettings);
+  const [systemSettings, setSystemSettings] = useState(() => {
+    try {
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : defaultSystemSettings;
+    } catch {
+      return defaultSystemSettings;
+    }
+  });
   const [interns, setInterns] = useState([]);
 
+  const persistSettings = (nextSettings) => {
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
+    } catch {
+      // ignore localStorage failures
+    }
+  };
 
   const toggleSidebar = () => {
     if (window.innerWidth >= 992) {
@@ -104,6 +135,22 @@ function App() {
   };
 
   const handlePageChange = (pageId) => {
+    const viewerRestrictedPages = new Set([
+      'add-income',
+      'add-expense',
+      'transfer-money',
+      'add-account',
+      'employee-master',
+      'general-settings',
+      'company-master',
+      'bank-master',
+      'payment-mode-master',
+      'category-master'
+    ]);
+    if (userRole === 'Viewer' && viewerRestrictedPages.has(pageId)) {
+      Swal.fire('Not allowed', 'Viewer has view-only access.', 'warning');
+      return;
+    }
     setActivePage(pageId);
     if (window.innerWidth < 992) {
       setIsSidebarShown(false);
@@ -148,6 +195,88 @@ function App() {
     modal.show();
   };
 
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      try {
+        const token = localStorage.getItem('expenses_basic_auth');
+        if (!token) return;
+        const me = await apiService.get('/auth/me');
+        setUserRole(mapRoleLabel(me?.role));
+        setUserProfile(me || null);
+        if (me?.employeeId) {
+          localStorage.setItem('actingUserId', String(me.employeeId));
+        }
+        setIsAuthenticated(true);
+      } catch {
+        apiService.clearBasicAuth();
+        localStorage.removeItem('actingUserId');
+        setIsAuthenticated(false);
+      }
+    };
+    bootstrapAuth();
+  }, []);
+
+  const handleLogin = async ({ username, password }) => {
+    try {
+      const validation = await apiService.postPublic('/auth/public/login', { username, password });
+      apiService.setBasicAuth(username, password);
+      const me = await apiService.get('/auth/me');
+      setUserRole(mapRoleLabel(me?.role));
+      setUserProfile(me || null);
+      if (me?.employeeId) {
+        localStorage.setItem('actingUserId', String(me.employeeId));
+      }
+      setIsAuthenticated(true);
+      Swal.fire({
+        icon: 'success',
+        title: `Welcome ${me?.name || validation?.name || username}`,
+        text: 'Login successful',
+        timer: 1300,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      apiService.clearBasicAuth();
+      localStorage.removeItem('actingUserId');
+      setIsAuthenticated(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'Login failed',
+        text: err?.message || 'Invalid credentials'
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    apiService.clearBasicAuth();
+    localStorage.removeItem('actingUserId');
+    setIsAuthenticated(false);
+    setUserProfile(null);
+    setActivePage('dashboard');
+  };
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      handleLogout();
+      Swal.fire({
+        icon: 'warning',
+        title: 'Session expired',
+        text: 'Session expired, please re-login your account.'
+      });
+    };
+
+    window.addEventListener('expenses:session-expired', onSessionExpired);
+    return () => window.removeEventListener('expenses:session-expired', onSessionExpired);
+  }, []);
+
+  useEffect(() => {
+    const theme = String(systemSettings?.preferences?.ui?.theme || 'Light').toLowerCase();
+    document.body.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+  }, [systemSettings?.preferences?.ui?.theme]);
+
+  if (!isAuthenticated) {
+    return <LoginView onLogin={handleLogin} />;
+  }
+
   return (
     <div className="app-container d-flex">
       <Sidebar 
@@ -157,6 +286,7 @@ function App() {
         isShown={isSidebarShown}
         setIsSidebarShown={setIsSidebarShown}
         userRole={userRole}
+        onLogout={handleLogout}
       />
 
       {/* Sidebar overlay for mobile - Always rendered for smooth CSS transition */}
@@ -170,6 +300,10 @@ function App() {
           activePage={activePage} 
           toggleSidebar={toggleSidebar} 
           onPageChange={handlePageChange} 
+          onLogout={handleLogout}
+          userRole={userRole}
+          userProfile={userProfile}
+          setUserProfile={setUserProfile}
         />
 
         <main className="content-area flex-grow-1">
@@ -179,9 +313,17 @@ function App() {
               onDelete={deleteIntern} 
               onEdit={editIntern} 
               setActivePage={setActivePage}
+              userRole={userRole}
             />
           ) : ['all-transactions', 'add-income', 'add-expense', 'transfer-money'].includes(activePage) ? (
-            <TransactionsPage activePage={activePage} userRole={userRole} mastersData={mastersData} accounts={accounts} refreshGlobalMasters={fetchAllMasters} />
+            <TransactionsPage
+              activePage={activePage}
+              setActivePage={setActivePage}
+              userRole={userRole}
+              mastersData={mastersData}
+              accounts={accounts}
+              refreshGlobalMasters={fetchAllMasters}
+            />
           ) : ['all-accounts', 'add-account', 'account-statement'].includes(activePage) ? (
             <AccountsPage 
               activePage={activePage} 
@@ -195,25 +337,31 @@ function App() {
           ) : ['bank-statement', 'company-report', 'combined-report', 'date-wise-report'].includes(activePage) ? (
             <ReportsPage activePage={activePage} userRole={userRole} />
           ) : activePage === 'employee-master' ? (
-            <MastersPage 
-              activePage={activePage} 
-              userRole={userRole} 
-              mastersData={mastersData}
-              setMastersData={setMastersData}
-              accounts={accounts}
-              refreshGlobalMasters={fetchAllMasters}
-            />
-          ) : ['general-settings', 'preferences'].includes(activePage) ? (
             userRole === 'Super Admin' ? (
+              <MastersPage 
+                activePage={activePage} 
+                userRole={userRole} 
+                mastersData={mastersData}
+                setMastersData={setMastersData}
+                accounts={accounts}
+                refreshGlobalMasters={fetchAllMasters}
+              />
+            ) : (
+              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} />
+            )
+          ) : ['general-settings', 'preferences'].includes(activePage) ? (
+            (userRole === 'Super Admin' || activePage === 'preferences') ? (
               <SettingsPage 
                 activePage={activePage} 
                 userRole={userRole} 
                 systemSettings={systemSettings}
                 setSystemSettings={setSystemSettings}
                 defaultSystemSettings={defaultSystemSettings}
+                onSaveSettings={persistSettings}
+                onResetSettings={persistSettings}
               />
             ) : (
-              <DashboardView interns={interns} setActivePage={setActivePage} />
+              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} />
             )
           ) : activePage.endsWith('-master') ? (
             userRole === 'Super Admin' ? (
@@ -226,7 +374,7 @@ function App() {
                 refreshGlobalMasters={fetchAllMasters}
               />
             ) : (
-              <DashboardView interns={interns} setActivePage={setActivePage} />
+              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} />
             )
           ) : (
             <EmptyView pageId={activePage} />

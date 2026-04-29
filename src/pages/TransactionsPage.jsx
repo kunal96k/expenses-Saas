@@ -4,7 +4,7 @@ import Pagination from '../components/Pagination';
 import { apiService } from '../services/api';
 import './TransactionsPage.css';
 
-const TransactionsPage = ({ activePage, userRole, mastersData, accounts: accountsFromProps }) => {
+const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, accounts: accountsFromProps }) => {
     // State for Tabs
     const [activeTab, setActiveTab] = useState('all');
 
@@ -33,7 +33,15 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
     const allCompanies = useMemo(() => mastersData?.company || [], [mastersData]);
     const activeCompanies = useMemo(() => allCompanies.filter(c => c.status === 'Active'), [allCompanies]);
     
-    const allAccounts = useMemo(() => accountsFromProps || [], [accountsFromProps]);
+    const [fallbackAccounts, setFallbackAccounts] = useState([]);
+    const allAccounts = useMemo(() => {
+        const merged = [...(fallbackAccounts || []), ...(accountsFromProps || [])];
+        const byId = new Map();
+        merged.forEach(acc => {
+            if (acc?.id != null) byId.set(acc.id, acc);
+        });
+        return Array.from(byId.values());
+    }, [accountsFromProps, fallbackAccounts]);
     const activeAccounts = useMemo(() => allAccounts.filter(a => a.status === 'Active'), [allAccounts]);
     
     const allCategories = useMemo(() => mastersData?.category || [], [mastersData]);
@@ -41,6 +49,7 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
     
     const allModes = useMemo(() => mastersData?.paymentMode || [], [mastersData]);
     const activeModes = useMemo(() => allModes.filter(m => m.status === 'Active'), [allModes]);
+    const tabToTxnType = { all: 'all', received: 'Received', paid: 'Paid', moved: 'Moved' };
 
     const fetchTransactions = async () => {
         setIsLoading(true);
@@ -49,7 +58,7 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
                 page: currentPage - 1,
                 size: itemsPerPage,
                 search: filters.search,
-                type: filters.type !== 'all' ? filters.type : (activeTab !== 'all' ? activeTab : 'all'),
+                type: filters.type !== 'all' ? filters.type : tabToTxnType[activeTab],
                 sortBy: 'date',
                 direction: 'desc'
             });
@@ -72,9 +81,23 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
         }
     };
 
+    const fetchAccountsFallback = async () => {
+        try {
+            const response = await apiService.getAllPages('/accounts');
+            setFallbackAccounts(Array.isArray(response) ? response : []);
+        } catch (error) {
+            console.error('Error fetching accounts fallback:', error);
+            setFallbackAccounts([]);
+        }
+    };
+
     useEffect(() => {
         fetchTransactions();
     }, [currentPage, itemsPerPage, filters, activeTab]);
+
+    useEffect(() => {
+        fetchAccountsFallback();
+    }, []);
 
     const toggleAccount = (accId) => {
         setFilters(prev => {
@@ -158,6 +181,24 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
             Swal.fire('Validation Error', 'Amount and Date are required.', 'error');
             return;
         }
+        const amountValue = Number(formValues.amount || 0);
+        if (amountValue <= 0) {
+            Swal.fire('Validation Error', 'Amount must be greater than zero.', 'error');
+            return;
+        }
+
+        if ((formValues.type === 'Paid' || formValues.type === 'Moved') && formValues.fromAccountId) {
+            const sourceAccount = allAccounts.find(a => String(a.id) === String(formValues.fromAccountId));
+            const sourceBalance = Number(sourceAccount?.balance || 0);
+            if (sourceBalance < amountValue) {
+                Swal.fire(
+                    'Insufficient Balance',
+                    `Not enough money in "${sourceAccount?.name || 'selected account'}". Available: ₹${sourceBalance.toLocaleString('en-IN')}, Required: ₹${amountValue.toLocaleString('en-IN')}.`,
+                    'warning'
+                );
+                return;
+            }
+        }
 
         try {
             if (formValues.id) {
@@ -173,7 +214,7 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
             console.error('Error saving transaction:', error);
             const errorMsg = error.errors 
                 ? Object.values(error.errors).map(msg => `• ${msg}`).join('<br/>') 
-                : error.message;
+                : (error.message || 'Failed to save transaction.');
 
             Swal.fire({
                 title: 'Validation Error',
@@ -496,6 +537,10 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
                     activeModal={activeModal} 
                     selectedTxn={selectedTxn} 
                     closeModal={closeModal} 
+                    onGoToAddAccount={() => {
+                        closeModal();
+                        if (setActivePage) setActivePage('add-account');
+                    }}
                     formValues={formValues}
                     setFormValues={setFormValues}
                     handleSave={handleSaveTransaction}
@@ -517,6 +562,7 @@ const TransactionsPage = ({ activePage, userRole, mastersData, accounts: account
 const TransactionModals = ({ 
     activeModal, 
     closeModal, 
+    onGoToAddAccount,
     formValues, 
     setFormValues, 
     handleSave,
@@ -636,13 +682,27 @@ const TransactionModals = ({
                                                         <div className="col-md-6">
                                                             <label className="form-label-custom">Source Account <span className="text-danger">*</span></label>
                                                             <select className="filter-input" value={formValues.fromAccountId} onChange={e => handleChange('fromAccountId', e.target.value)}>
-                                                                <option value="">Select Account</option>
+                                                                <option value="">
+                                                                    {activeAccounts.length === 0 ? 'No active accounts found. Create an account first.' : 'Select Account'}
+                                                                </option>
                                                                 {allAccounts.map(a => (
                                                                     <option key={a.id} value={a.id}>
                                                                         {a.name} ({a.companyName}) {a.status === 'Inactive' ? '(Inactive)' : ''}
                                                                     </option>
                                                                 ))}
                                                             </select>
+                                                            {activeAccounts.length === 0 && (
+                                                                <div className="small text-danger mt-1">
+                                                                    No active accounts found. Create an account first.
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn btn-link btn-sm p-0 ms-2 align-baseline"
+                                                                        onClick={onGoToAddAccount}
+                                                                    >
+                                                                        Go to Add Account
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="col-md-6 d-flex align-items-end">
                                                             <div className="text-muted small mb-2">
@@ -670,13 +730,27 @@ const TransactionModals = ({
                                                         <div className="col-md-6">
                                                             <label className="form-label-custom">Destination Account <span className="text-danger">*</span></label>
                                                             <select className="filter-input" value={formValues.toAccountId} onChange={e => handleChange('toAccountId', e.target.value)}>
-                                                                <option value="">Select Account</option>
+                                                                <option value="">
+                                                                    {activeAccounts.length === 0 ? 'No active accounts found. Create an account first.' : 'Select Account'}
+                                                                </option>
                                                                 {allAccounts.map(a => (
                                                                     <option key={a.id} value={a.id}>
                                                                         {a.name} ({a.companyName}) {a.status === 'Inactive' ? '(Inactive)' : ''}
                                                                     </option>
                                                                 ))}
                                                             </select>
+                                                            {activeAccounts.length === 0 && (
+                                                                <div className="small text-danger mt-1">
+                                                                    No active accounts found. Create an account first.
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn btn-link btn-sm p-0 ms-2 align-baseline"
+                                                                        onClick={onGoToAddAccount}
+                                                                    >
+                                                                        Go to Add Account
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="col-md-6 d-flex align-items-end">
                                                             <div className="text-muted small mb-2">

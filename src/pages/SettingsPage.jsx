@@ -24,7 +24,7 @@ const SettingsSwitch = ({ checked, onChange, disabled }) => (
   </label>
 );
 
-const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings, defaultSystemSettings }) => {
+const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings, defaultSystemSettings, onSaveSettings, onResetSettings }) => {
   const isGeneral = activePage === 'general-settings';
   const isPreferences = activePage === 'preferences';
 
@@ -77,6 +77,7 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
       timer: 1500,
       showConfirmButton: false
     });
+    onSaveSettings?.(settings);
   };
 
   const handleReset = () => {
@@ -91,6 +92,7 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
     }).then((result) => {
       if (result.isConfirmed) {
         if (setSystemSettings) setSystemSettings(defaultSystemSettings);
+        onResetSettings?.(defaultSystemSettings);
         Swal.fire({
           icon: 'success',
           title: 'Reset Done',

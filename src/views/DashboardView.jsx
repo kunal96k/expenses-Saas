@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import StatCard from '../components/StatCard';
+import { apiService } from '../services/api';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -28,47 +29,204 @@ ChartJS.register(
   Filler
 );
 
-const PAGE_SIZES = [25, 50, 100, 500, 1000];
+const PAGE_SIZES = [10, 25, 50, 100, 500, 1000];
 
-const DashboardView = ({ setActivePage }) => {
+const DashboardView = ({ setActivePage, userRole = 'Viewer' }) => {
   const [activeRow, setActiveRow]       = useState(null);
-  const [txPageSize, setTxPageSize]     = useState(25);
+  const [txPageSize, setTxPageSize]     = useState(10);
   const [txPage, setTxPage]             = useState(1);
+  const [companies, setCompanies] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [analyticsTransactions, setAnalyticsTransactions] = useState([]);
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    companyId: '',
+    accountId: ''
+  });
+  const [chartView, setChartView] = useState('monthly');
 
-  // Mock Data
-  const companies = [
-    { id: 1, name: "TechnoKraft Services", balance: "₹12,45,000" },
-    { id: 2, name: "TK Training & Solutions", balance: "₹4,20,500" },
-    { id: 3, name: "TK Digital Hub", balance: "₹8,15,000" }
-  ];
+  const selectedCompanyId = filters.companyId ? Number(filters.companyId) : null;
+  const selectedAccountId = filters.accountId ? Number(filters.accountId) : null;
+  const canShowQuickActions = ['Super Admin', 'Superior Super Admin'].includes(userRole);
 
-  const accounts = [
-    { id: 1, name: "HDFC Bank (9876)", company: "TechnoKraft Services", balance: "₹8,45,000", type: "Bank" },
-    { id: 2, name: "ICICI Bank (4321)", company: "TK Training & Solutions", balance: "₹3,20,500", type: "Bank" },
-    { id: 3, name: "Main Cash", company: "TechnoKraft Services", balance: "₹4,00,000", type: "Cash" },
-    { id: 4, name: "SBI Bank (5566)", company: "TK Digital Hub", balance: "₹8,15,000", type: "Bank" }
-  ];
+  const formatCurrency = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
-  const transactions = [
-    { id: 101, date: "2024-10-24", type: "Income", flow: "Client Payment → HDFC", company: "TechnoKraft Services", account: "HDFC Bank", amount: "₹50,000", status: "credit" },
-    { id: 102, date: "2024-10-23", type: "Expense", flow: "Office Rent → HDFC", company: "TechnoKraft Services", account: "HDFC Bank", amount: "₹25,000", status: "debit" },
-    { id: 103, date: "2024-10-23", type: "Transfer", flow: "HDFC → Main Cash", company: "TechnoKraft Services", account: "Internal", amount: "₹10,000", status: "transfer" },
-    { id: 104, date: "2024-10-22", type: "Income", flow: "Course Fee → ICICI", company: "TK Training & Solutions", account: "ICICI Bank", amount: "₹15,000", status: "credit" },
-    { id: 105, date: "2024-10-21", type: "Expense", flow: "Salary → ICICI", company: "TK Training & Solutions", account: "ICICI Bank", amount: "₹80,000", status: "debit" }
-  ];
+  const txTypeToStatus = (type) => {
+    if (type === 'Received') return 'credit';
+    if (type === 'Paid') return 'debit';
+    return 'transfer';
+  };
+
+  const getTxnFlow = (txn) => {
+    const from = txn.fromAccountName || txn.fromExternal || '-';
+    const to = txn.toAccountName || txn.toExternal || '-';
+    return `${from} → ${to}`;
+  };
+
+  const filteredAccounts = useMemo(() => {
+    if (!selectedCompanyId) return accounts;
+    return accounts.filter((a) => Number(a.companyId) === selectedCompanyId);
+  }, [accounts, selectedCompanyId]);
+
+  useEffect(() => {
+    const loadMasters = async () => {
+      try {
+        const [companyRes, accountRes] = await Promise.all([
+          apiService.getAllPages('/companies'),
+          apiService.getAllPages('/accounts')
+        ]);
+        setCompanies(companyRes || []);
+        setAccounts(accountRes || []);
+      } catch {
+        setCompanies([]);
+        setAccounts([]);
+      }
+    };
+    loadMasters();
+  }, []);
+
+  useEffect(() => {
+    if (selectedCompanyId && selectedAccountId) {
+      const accountExists = accounts.some((a) => Number(a.id) === selectedAccountId && Number(a.companyId) === selectedCompanyId);
+      if (!accountExists) {
+        setFilters((prev) => ({ ...prev, accountId: '' }));
+      }
+    }
+  }, [selectedCompanyId, selectedAccountId, accounts]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.set('dateTo', filters.dateTo);
+    if (selectedCompanyId) params.set('companyId', String(selectedCompanyId));
+    if (selectedAccountId) params.append('accountIds', String(selectedAccountId));
+    params.set('page', String(Math.max(txPage - 1, 0)));
+    params.set('size', String(txPageSize));
+    params.set('sortBy', 'date');
+    params.set('direction', 'desc');
+
+    const analyticsParams = new URLSearchParams();
+    if (filters.dateFrom) analyticsParams.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo) analyticsParams.set('dateTo', filters.dateTo);
+    if (selectedCompanyId) analyticsParams.set('companyId', String(selectedCompanyId));
+    if (selectedAccountId) analyticsParams.append('accountIds', String(selectedAccountId));
+    analyticsParams.set('page', '0');
+    analyticsParams.set('size', '1000');
+    analyticsParams.set('sortBy', 'date');
+    analyticsParams.set('direction', 'desc');
+
+    const loadTransactions = async () => {
+      try {
+        const [paged, analytics] = await Promise.all([
+          apiService.get(`/transactions?${params.toString()}`),
+          apiService.get(`/transactions?${analyticsParams.toString()}`)
+        ]);
+        setTransactions(paged?.content || []);
+        setAnalyticsTransactions(analytics?.content || []);
+      } catch {
+        setTransactions([]);
+        setAnalyticsTransactions([]);
+      }
+    };
+    loadTransactions();
+  }, [filters.dateFrom, filters.dateTo, selectedCompanyId, selectedAccountId, txPage, txPageSize]);
+
+  const kpi = useMemo(() => {
+    const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    const totals = analyticsTransactions.reduce((acc, txn) => {
+      const amt = Number(txn.amount || 0);
+      if (txn.type === 'Received') acc.credit += amt;
+      else if (txn.type === 'Paid') acc.debit += amt;
+      return acc;
+    }, { credit: 0, debit: 0 });
+    const net = totals.credit - totals.debit;
+    return { totalBalance, totalCredit: totals.credit, totalDebit: totals.debit, net };
+  }, [accounts, analyticsTransactions]);
+
+  const trend = useMemo(() => {
+    const base = kpi.totalCredit + kpi.totalDebit;
+    const pct = base > 0 ? ((kpi.net / base) * 100).toFixed(1) : '0.0';
+    return `${pct}%`;
+  }, [kpi]);
+
+  const companySummary = useMemo(() => {
+    const map = new Map();
+    accounts.forEach((a) => {
+      const key = a.companyName || 'Unassigned';
+      map.set(key, (map.get(key) || 0) + Number(a.balance || 0));
+    });
+    return [...map.entries()]
+      .map(([name, balance], idx) => ({ id: idx + 1, name, balance }))
+      .sort((a, b) => b.balance - a.balance);
+  }, [accounts]);
+
+  const monthlyMap = useMemo(() => {
+    const map = new Map();
+    analyticsTransactions.forEach((txn) => {
+      if (!txn.date) return;
+      const d = new Date(txn.date);
+      if (Number.isNaN(d.getTime())) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!map.has(key)) {
+        map.set(key, { credit: 0, debit: 0, label: d.toLocaleDateString('en-US', { month: 'short' }) });
+      }
+      const row = map.get(key);
+      const amt = Number(txn.amount || 0);
+      if (txn.type === 'Received') row.credit += amt;
+      if (txn.type === 'Paid') row.debit += amt;
+    });
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-8).map(([, v]) => v);
+  }, [analyticsTransactions]);
+
+  const weeklyMap = useMemo(() => {
+    const map = new Map();
+    const getWeekStart = (date) => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      d.setDate(d.getDate() - diff);
+      return d;
+    };
+
+    analyticsTransactions.forEach((txn) => {
+      if (!txn.date) return;
+      const parsed = new Date(txn.date);
+      if (Number.isNaN(parsed.getTime())) return;
+      const weekStart = getWeekStart(parsed);
+      const key = weekStart.toISOString().slice(0, 10);
+      if (!map.has(key)) {
+        map.set(key, {
+          credit: 0,
+          debit: 0,
+          label: `Wk ${weekStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`
+        });
+      }
+      const row = map.get(key);
+      const amt = Number(txn.amount || 0);
+      if (txn.type === 'Received') row.credit += amt;
+      if (txn.type === 'Paid') row.debit += amt;
+    });
+
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-8).map(([, v]) => v);
+  }, [analyticsTransactions]);
+
+  const chartSeries = chartView === 'weekly' ? weeklyMap : monthlyMap;
 
   const chartData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
+    labels: chartSeries.map((m) => m.label),
     datasets: [
       {
         label: 'Credit',
-        data: [120000, 150000, 110000, 190000, 210000, 180000, 230000, 250000],
+        data: chartSeries.map((m) => m.credit),
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
         borderRadius: 4,
       },
       {
         label: 'Debit',
-        data: [80000, 100000, 95000, 140000, 130000, 120000, 160000, 180000],
+        data: chartSeries.map((m) => m.debit),
         backgroundColor: 'rgba(239, 68, 68, 0.8)',
         borderRadius: 4,
       }
@@ -97,28 +255,48 @@ const DashboardView = ({ setActivePage }) => {
             <div className="col-md-3">
               <label className="form-label small fw-semibold text-muted">Date Range</label>
               <div className="input-group input-group-sm">
-                <input type="date" className="form-control" />
+                <input
+                  type="date"
+                  className="form-control"
+                  value={filters.dateFrom}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+                />
                 <span className="input-group-text">to</span>
-                <input type="date" className="form-control" />
+                <input
+                  type="date"
+                  className="form-control"
+                  value={filters.dateTo}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+                />
               </div>
             </div>
             <div className="col-md-3">
               <label className="form-label small fw-semibold text-muted">Company</label>
-              <select className="form-select form-select-sm">
-                <option>All Companies</option>
-                {companies.map(c => <option key={c.id}>{c.name}</option>)}
+              <select
+                className="form-select form-select-sm"
+                value={filters.companyId}
+                onChange={(e) => {
+                  const nextCompanyId = e.target.value;
+                  setFilters((prev) => ({ ...prev, companyId: nextCompanyId, accountId: '' }));
+                }}
+              >
+                <option value="">All Companies</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="col-md-3">
               <label className="form-label small fw-semibold text-muted">Account / Bank</label>
-              <select className="form-select form-select-sm">
-                <option>All Accounts</option>
-                {accounts.map(a => <option key={a.id}>{a.name}</option>)}
+              <select className="form-select form-select-sm" value={filters.accountId} onChange={(e) => setFilters((prev) => ({ ...prev, accountId: e.target.value }))}>
+                <option value="">All Accounts</option>
+                {filteredAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
             <div className="col-md-3 d-flex gap-2">
-              <button className="btn btn-primary-custom btn-sm flex-grow-1">Apply Filters</button>
-              <button className="btn btn-secondary-custom btn-sm">Reset</button>
+              <button className="btn btn-primary-custom btn-sm flex-grow-1" onClick={() => setTxPage(1)}>Apply Filters</button>
+              <button className="btn btn-secondary-custom btn-sm" onClick={() => {
+                setFilters({ dateFrom: '', dateTo: '', companyId: '', accountId: '' });
+                setTxPage(1);
+              }}>Reset</button>
             </div>
           </div>
         </div>
@@ -130,9 +308,9 @@ const DashboardView = ({ setActivePage }) => {
           <StatCard 
             icon="bi-wallet2" 
             label="Total Balance" 
-            value="₹24,80,500" 
-            trend="up" 
-            trendValue="4.2%" 
+            value={formatCurrency(kpi.totalBalance)} 
+            trend={kpi.net >= 0 ? 'up' : 'down'} 
+            trendValue={trend} 
             iconColorClass="bg-blue-soft text-blue"
           />
         </div>
@@ -140,9 +318,9 @@ const DashboardView = ({ setActivePage }) => {
           <StatCard 
             icon="bi-arrow-down-left-circle" 
             label="Total Credit" 
-            value="₹5,40,000" 
+            value={formatCurrency(kpi.totalCredit)} 
             trend="up" 
-            trendValue="12.5%" 
+            trendValue={`${analyticsTransactions.filter((t) => t.type === 'Received').length} txns`} 
             iconColorClass="bg-green-soft text-green"
           />
         </div>
@@ -150,9 +328,9 @@ const DashboardView = ({ setActivePage }) => {
           <StatCard 
             icon="bi-arrow-up-right-circle" 
             label="Total Debit" 
-            value="₹3,20,000" 
-            trend="down" 
-            trendValue="8.2%" 
+            value={formatCurrency(kpi.totalDebit)} 
+            trend={kpi.totalDebit > kpi.totalCredit ? 'up' : 'down'} 
+            trendValue={`${analyticsTransactions.filter((t) => t.type === 'Paid').length} txns`} 
             iconColorClass="bg-orange-soft text-orange"
           />
         </div>
@@ -160,16 +338,16 @@ const DashboardView = ({ setActivePage }) => {
           <StatCard 
             icon="bi-graph-up-arrow" 
             label="Net Flow" 
-            value="₹2,20,000" 
-            trend="up" 
-            trendValue="15%" 
+            value={formatCurrency(kpi.net)} 
+            trend={kpi.net >= 0 ? 'up' : 'down'} 
+            trendValue={trend} 
             iconColorClass="bg-purple-soft text-purple"
           />
         </div>
       </div>
 
       {/* ── Quick Actions ── */}
-      <div className="dash-quick-actions">
+      {canShowQuickActions && (<div className="dash-quick-actions">
         <div className="dash-qa-left">
           <span className="dash-qa-label">Quick Actions</span>
           <button
@@ -208,7 +386,7 @@ const DashboardView = ({ setActivePage }) => {
             <i className="bi bi-buildings"></i> Masters
           </a>
         </div>
-      </div>
+      </div>)}
 
       <div className="row g-3 mb-4">
         {/* C. Company-wise Summary */}
@@ -216,7 +394,12 @@ const DashboardView = ({ setActivePage }) => {
           <div className="card h-100 table-card">
             <div className="card-header-custom">
               <h5>Company Summary</h5>
-              <button className="btn btn-outline-custom">View All</button>
+              <button
+                className="btn btn-outline-custom"
+                onClick={() => setActivePage && setActivePage('company-master')}
+              >
+                View All
+              </button>
             </div>
             <div className="card-body p-0">
               <div className="table-responsive">
@@ -228,7 +411,7 @@ const DashboardView = ({ setActivePage }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {companies.map(company => (
+                    {companySummary.map(company => (
                       <tr 
                         key={company.id} 
                         className={activeRow === `company-${company.id}` ? 'active-row' : ''}
@@ -236,7 +419,7 @@ const DashboardView = ({ setActivePage }) => {
                         style={{ cursor: 'pointer' }}
                       >
                         <td data-label="Company Name" className="fw-medium">{company.name}</td>
-                        <td data-label="Balance" className="text-end fw-bold text-primary">{company.balance}</td>
+                        <td data-label="Balance" className="text-end fw-bold text-primary">{formatCurrency(company.balance)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -251,7 +434,12 @@ const DashboardView = ({ setActivePage }) => {
           <div className="card h-100 table-card">
             <div className="card-header-custom">
               <h5>Bank & Cash Accounts</h5>
-              <button className="btn btn-outline-custom">Statements</button>
+              <button
+                className="btn btn-outline-custom"
+                onClick={() => setActivePage && setActivePage('account-statement')}
+              >
+                Statements
+              </button>
             </div>
             <div className="card-body p-0">
               <div className="table-responsive">
@@ -264,7 +452,7 @@ const DashboardView = ({ setActivePage }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {accounts.map(account => (
+                    {filteredAccounts.map(account => (
                       <tr 
                         key={account.id} 
                         className={activeRow === `account-${account.id}` ? 'active-row' : ''}
@@ -277,8 +465,8 @@ const DashboardView = ({ setActivePage }) => {
                             {account.name}
                           </div>
                         </td>
-                        <td data-label="Company" className="small text-muted">{account.company}</td>
-                        <td data-label="Balance" className="text-end fw-bold">{account.balance}</td>
+                        <td data-label="Company" className="small text-muted">{account.companyName}</td>
+                        <td data-label="Balance" className="text-end fw-bold">{formatCurrency(account.balance)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -296,8 +484,18 @@ const DashboardView = ({ setActivePage }) => {
             <div className="card-header-custom">
               <h5>Cash Flow Analysis (Credit vs Debit)</h5>
               <div className="btn-group btn-group-sm">
-                <button className="btn btn-secondary-custom active">Monthly</button>
-                <button className="btn btn-secondary-custom">Weekly</button>
+                <button
+                  className={`btn btn-secondary-custom ${chartView === 'monthly' ? 'active' : ''}`}
+                  onClick={() => setChartView('monthly')}
+                >
+                  Monthly
+                </button>
+                <button
+                  className={`btn btn-secondary-custom ${chartView === 'weekly' ? 'active' : ''}`}
+                  onClick={() => setChartView('weekly')}
+                >
+                  Weekly
+                </button>
               </div>
             </div>
             <div className="card-body">
@@ -356,15 +554,15 @@ const DashboardView = ({ setActivePage }) => {
                   >
                     <td data-label="Date">{t.date}</td>
                     <td data-label="Type">
-                      <span className={`status-badge status-${t.status}`}>
-                        {t.type}
+                      <span className={`status-badge status-${txTypeToStatus(t.type)}`}>
+                        {t.type === 'Received' ? 'Income' : t.type === 'Paid' ? 'Expense' : 'Transfer'}
                       </span>
                     </td>
-                    <td data-label="Description" className="small">{t.flow}</td>
-                    <td data-label="Company">{t.company}</td>
-                    <td data-label="Account">{t.account}</td>
-                    <td data-label="Amount" className={`text-end fw-bold ${t.status === 'credit' ? 'text-success' : t.status === 'debit' ? 'text-danger' : 'text-primary'}`}>
-                      {t.status === 'debit' ? '-' : t.status === 'credit' ? '+' : ''}{t.amount}
+                    <td data-label="Description" className="small">{getTxnFlow(t)}</td>
+                    <td data-label="Company">{t.fromCompanyName || t.toCompanyName || '-'}</td>
+                    <td data-label="Account">{t.fromAccountName || t.toAccountName || '-'}</td>
+                    <td data-label="Amount" className={`text-end fw-bold ${txTypeToStatus(t.type) === 'credit' ? 'text-success' : txTypeToStatus(t.type) === 'debit' ? 'text-danger' : 'text-primary'}`}>
+                      {txTypeToStatus(t.type) === 'debit' ? '-' : txTypeToStatus(t.type) === 'credit' ? '+' : ''}{formatCurrency(t.amount)}
                     </td>
                   </tr>
                 ))}
