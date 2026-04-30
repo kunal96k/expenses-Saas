@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Swal from 'sweetalert2';
 import { apiService } from '../services/api';
 
-const Header = ({ activePage, toggleSidebar, onPageChange, onLogout, userRole, userProfile, setUserProfile }) => {
+const Header = ({ activePage, toggleSidebar, onPageChange, onLogout, userRole, userProfile, setUserProfile, systemSettings }) => {
   const [isDropdownShow, setIsDropdownShow] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileMode, setProfileMode] = useState('view'); // 'view' or 'edit'
@@ -115,6 +115,26 @@ const Header = ({ activePage, toggleSidebar, onPageChange, onLogout, userRole, u
 
   const handlePasswordSave = async () => {
     try {
+      const { newPassword, confirmPassword } = passwordForm;
+      const minLen = systemSettings?.general?.security?.passwordMinLength || 6;
+      const strongPolicy = systemSettings?.general?.security?.strongPasswordPolicy;
+
+      if (newPassword.length < minLen) {
+        Swal.fire('Validation Error', `Password must be at least ${minLen} characters long based on Security Settings.`, 'error');
+        return;
+      }
+      if (strongPolicy) {
+        const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+        if (!strongRegex.test(newPassword)) {
+          Swal.fire('Validation Error', 'Password must contain at least one uppercase, lowercase, number, and special character based on Strong Password Policy.', 'error');
+          return;
+        }
+      }
+      if (newPassword !== confirmPassword) {
+        Swal.fire('Validation Error', 'Passwords do not match.', 'error');
+        return;
+      }
+
       await apiService.patch('/auth/me/password', passwordForm);
       setShowPasswordModal(false);
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -268,10 +288,10 @@ const Header = ({ activePage, toggleSidebar, onPageChange, onLogout, userRole, u
                                                 </div>
                                             </div>
                                             <div className="d-flex align-items-center mb-3">
-                                                <div className="bg-white p-2 rounded-circle shadow-sm me-3 text-warning d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}><i className="bi bi-calendar-check"></i></div>
+                                                <div className="bg-white p-2 rounded-circle shadow-sm me-3 text-warning d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}><i className="bi bi-building"></i></div>
                                                 <div>
-                                                    <small className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Joining Date</small>
-                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>01-Jan-2023</span>
+                                                    <small className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>Department</small>
+                                                    <span className="fw-semibold text-dark" style={{ fontSize: '0.9rem' }}>{userProfile?.department || '-'}</span>
                                                 </div>
                                             </div>
                                             <div className="d-flex align-items-center">

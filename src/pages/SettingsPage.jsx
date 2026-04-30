@@ -28,7 +28,10 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
   const isGeneral = activePage === 'general-settings';
   const isPreferences = activePage === 'preferences';
 
-  const canEdit = userRole === 'Super Admin';
+  const canEditGeneral = ['Super Admin', 'Superior Super Admin'].includes(userRole);
+  const canEditPreferences = true; // All roles can edit preferences
+
+  const canEdit = isGeneral ? canEditGeneral : canEditPreferences;
 
   const settings = systemSettings || defaultSystemSettings;
   const setAtPath = (path, value) => {
@@ -113,7 +116,7 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
             <h2 className="page-title mb-1">Settings</h2>
             <p className="text-muted small mb-0">System-wide configuration and user experience defaults.</p>
           </div>
-          <div className="settings-action-btns">
+          <div className="settings-action-btns d-flex gap-2">
             <button className="settings-reset-btn" disabled={!canEdit} onClick={handleReset}>
               <i className="bi bi-arrow-counterclockwise me-2"></i> Reset
             </button>
@@ -134,10 +137,12 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
       {/* Segmented Control Tabs (Only visible if mobile, otherwise sidebar handles it) */}
       <div className="settings-tabs-wrapper d-block d-md-none">
         <div className="settings-tabs">
-          <button className={`settings-tab ${isGeneral ? 'active' : ''}`} disabled>
-            <i className="bi bi-gear"></i>
-            General
-          </button>
+          {canEditGeneral && (
+            <button className={`settings-tab ${isGeneral ? 'active' : ''}`} disabled>
+              <i className="bi bi-gear"></i>
+              General
+            </button>
+          )}
           <button className={`settings-tab ${isPreferences ? 'active' : ''}`} disabled>
             <i className="bi bi-sliders"></i>
             Preferences
@@ -177,10 +182,10 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
             <div className="settings-group-title">Security Settings</div>
             <div className="settings-card">
               <SettingsRow iconClass="bi-clock-history" iconBg="s-icon-red" label="Session Timeout" desc="Recommended: 30 minutes. Range: 5–240.">
-                <input type="number" className="settings-input" style={{width: '80px'}} value={settings.general.security.sessionTimeoutMins} disabled={!canEdit} onChange={(e) => setAtPath(['general', 'security', 'sessionTimeoutMins'], Number(e.target.value))} min={5} max={240} />
+                <input type="number" className="settings-input" style={{ width: '80px' }} value={settings.general.security.sessionTimeoutMins} disabled={!canEdit} onChange={(e) => setAtPath(['general', 'security', 'sessionTimeoutMins'], Number(e.target.value))} min={5} max={240} />
               </SettingsRow>
               <SettingsRow iconClass="bi-key" iconBg="s-icon-red" label="Password Minimum Length" desc="Minimum allowed characters for user passwords.">
-                <input type="number" className="settings-input" style={{width: '80px'}} value={settings.general.security.passwordMinLength} disabled={!canEdit} onChange={(e) => setAtPath(['general', 'security', 'passwordMinLength'], Number(e.target.value))} min={6} max={64} />
+                <input type="number" className="settings-input" style={{ width: '80px' }} value={settings.general.security.passwordMinLength} disabled={!canEdit} onChange={(e) => setAtPath(['general', 'security', 'passwordMinLength'], Number(e.target.value))} min={6} max={64} />
               </SettingsRow>
               <SettingsRow iconClass="bi-shield-lock" iconBg="s-icon-red" label="Strong Password Policy" desc="Encourage stronger passwords (uppercase, lowercase, number, symbol).">
                 <SettingsSwitch checked={!!settings.general.security.strongPasswordPolicy} disabled={!canEdit} onChange={(v) => setAtPath(['general', 'security', 'strongPasswordPolicy'], v)} />
@@ -244,10 +249,10 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
                 </select>
               </SettingsRow>
               <SettingsRow iconClass="bi-calendar-event" iconBg="s-icon-blue" label="Scheduled Day" desc="Day of month (1-28) to avoid calendar errors.">
-                <input type="number" className="settings-input" style={{width: '80px'}} value={settings.preferences.reports.scheduledDay} disabled={!canEdit} onChange={(e) => setAtPath(['preferences', 'reports', 'scheduledDay'], e.target.value)} min={1} max={28} />
+                <input type="number" className="settings-input" style={{ width: '80px' }} value={settings.preferences.reports.scheduledDay} disabled={!canEdit} onChange={(e) => setAtPath(['preferences', 'reports', 'scheduledDay'], e.target.value)} min={1} max={28} />
               </SettingsRow>
               <SettingsRow iconClass="bi-alarm" iconBg="s-icon-blue" label="Scheduled Time" desc="Exact time of day to trigger report generation.">
-                <input type="time" className="settings-input" style={{width: '120px'}} value={settings.preferences.reports.scheduledTime} disabled={!canEdit} onChange={(e) => setAtPath(['preferences', 'reports', 'scheduledTime'], e.target.value)} />
+                <input type="time" className="settings-input" style={{ width: '120px' }} value={settings.preferences.reports.scheduledTime} disabled={!canEdit} onChange={(e) => setAtPath(['preferences', 'reports', 'scheduledTime'], e.target.value)} />
               </SettingsRow>
             </div>
           </div>

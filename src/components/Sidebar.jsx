@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
 
-const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarShown, userRole, onLogout }) => {
+const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarShown, userRole, userProfile, onLogout }) => {
   const viewerAllowedSubmodules = new Set([
     'all-transactions',
     'all-accounts',
@@ -106,9 +106,17 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
       }
     });
   };
+  const [isHovered, setIsHovered] = useState(false);
+
+  const visuallyCollapsed = isCollapsed && !isHovered;
 
   return (
-    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isShown ? 'show' : ''}`} id="sidebar">
+    <aside 
+      className={`sidebar ${visuallyCollapsed ? 'collapsed' : ''} ${isShown ? 'show' : ''}`} 
+      id="sidebar"
+      onMouseEnter={() => isCollapsed && setIsHovered(true)}
+      onMouseLeave={() => isCollapsed && setIsHovered(false)}
+    >
       <div className="sidebar-header">
         <div className="brand">
           <div className="brand-logo">
@@ -153,12 +161,12 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
             >
               <i className={`bi ${item.icon}`}></i>
               <span>{item.label}</span>
-              {item.submodules.length > 0 && !isCollapsed && (
+              {item.submodules.length > 0 && !visuallyCollapsed && (
                 <i className="bi bi-chevron-down dropdown-icon"></i>
               )}
             </a>
             
-            {item.submodules.length > 0 && !isCollapsed && (
+            {item.submodules.length > 0 && !visuallyCollapsed && (
               <ul className={`submenu ${expandedMenus[item.id] ? 'show' : ''}`}>
                 {item.submodules.map((sub) => (
                   <li key={sub.id}>
@@ -183,10 +191,10 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
 
       <div className="sidebar-footer">
         <div className="user-mini-profile">
-          <img src="https://ui-avatars.com/api/?name=kunal+patil&background=5c67f2&color=fff" alt="User" />
+          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.name || 'User')}&background=5c67f2&color=fff&bold=true`} alt="User" />
           <div className="user-info">
-            <h6>kunal patil</h6>
-            <small>Super Admin</small>
+            <h6>{userProfile?.name || 'User'}</h6>
+            <small>{userRole || 'Viewer'}</small>
           </div>
         </div>
         <button 

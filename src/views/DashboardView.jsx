@@ -31,7 +31,7 @@ ChartJS.register(
 
 const PAGE_SIZES = [10, 25, 50, 100, 500, 1000];
 
-const DashboardView = ({ setActivePage, userRole = 'Viewer' }) => {
+const DashboardView = ({ setActivePage, userRole = 'Viewer', systemSettings }) => {
   const [activeRow, setActiveRow]       = useState(null);
   const [txPageSize, setTxPageSize]     = useState(10);
   const [txPage, setTxPage]             = useState(1);
@@ -477,9 +477,10 @@ const DashboardView = ({ setActivePage, userRole = 'Viewer' }) => {
         </div>
       </div>
 
-      <div className="row g-3 mb-4">
-        {/* E. Cash Flow Chart */}
-        <div className="col-lg-12">
+      {systemSettings?.preferences?.dashboard?.showCharts !== false && (
+        <div className="row g-3 mb-4">
+          {/* E. Cash Flow Chart */}
+          <div className="col-lg-12">
           <div className="card chart-card">
             <div className="card-header-custom">
               <h5>Cash Flow Analysis (Credit vs Debit)</h5>
@@ -506,6 +507,7 @@ const DashboardView = ({ setActivePage, userRole = 'Viewer' }) => {
           </div>
         </div>
       </div>
+      )}
 
       {/* F. Recent Transactions */}
       <div className="card table-card mb-4">

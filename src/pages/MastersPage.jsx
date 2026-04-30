@@ -625,7 +625,9 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                             <td className="fw-semibold" style={{ color: '#0f172a' }}>{item.name}</td>
                                             <td className="small text-muted">{item.email || '—'}</td>
                                             <td>
-                                                <span className={`status-badge ${item.role === 'SUPERADMIN' ? 'status-credit' : 'status-debit'}`}>{item.role || 'VIEWER'}</span>
+                                                <span className={`status-badge ${item.role === 'SUPERADMIN' ? 'status-credit' : 'status-debit'}`}>
+                                                    {item.role === 'SUPERADMIN' ? 'Super Admin' : (item.role === 'VIEWER' ? 'Viewer' : item.role)}
+                                                </span>
                                                 {Boolean(item.isSuperior) && <span className="ms-2 badge bg-dark-subtle text-dark">Superior</span>}
                                             </td>
                                             <td className="small text-muted">{item.username || '—'}</td>

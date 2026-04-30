@@ -118,11 +118,14 @@ function App() {
   });
   const [interns, setInterns] = useState([]);
 
-  const persistSettings = (nextSettings) => {
+  const persistSettings = async (nextSettings) => {
     try {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
-    } catch {
-      // ignore localStorage failures
+      if (nextSettings.preferences) {
+        await apiService.patch('/auth/me/preferences', nextSettings.preferences);
+      }
+    } catch (err) {
+      console.error("Failed to save preferences to backend", err);
     }
   };
 
@@ -206,6 +209,12 @@ function App() {
         if (me?.employeeId) {
           localStorage.setItem('actingUserId', String(me.employeeId));
         }
+        if (me?.preferences) {
+          setSystemSettings(prev => ({
+            ...prev,
+            preferences: { ...prev.preferences, ...me.preferences }
+          }));
+        }
         setIsAuthenticated(true);
       } catch {
         apiService.clearBasicAuth();
@@ -225,6 +234,12 @@ function App() {
       setUserProfile(me || null);
       if (me?.employeeId) {
         localStorage.setItem('actingUserId', String(me.employeeId));
+      }
+      if (me?.preferences) {
+        setSystemSettings(prev => ({
+          ...prev,
+          preferences: { ...prev.preferences, ...me.preferences }
+        }));
       }
       setIsAuthenticated(true);
       Swal.fire({
@@ -269,6 +284,37 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let timeoutId;
+    const timeoutMins = systemSettings?.general?.security?.sessionTimeoutMins || 30;
+    const timeoutMs = timeoutMins * 60 * 1000;
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handleLogout();
+        import('sweetalert2').then(({ default: Swal }) => {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Session Timeout',
+            text: `You have been logged out due to ${timeoutMins} minutes of inactivity.`
+          });
+        });
+      }, timeoutMs);
+    };
+
+    if (isAuthenticated) {
+      resetTimer();
+      const events = ['mousemove', 'keydown', 'click', 'scroll'];
+      events.forEach(event => window.addEventListener(event, resetTimer));
+
+      return () => {
+        clearTimeout(timeoutId);
+        events.forEach(event => window.removeEventListener(event, resetTimer));
+      };
+    }
+  }, [isAuthenticated, systemSettings?.general?.security?.sessionTimeoutMins]);
+
+  useEffect(() => {
     const theme = String(systemSettings?.preferences?.ui?.theme || 'Light').toLowerCase();
     document.body.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
   }, [systemSettings?.preferences?.ui?.theme]);
@@ -286,6 +332,7 @@ function App() {
         isShown={isSidebarShown}
         setIsSidebarShown={setIsSidebarShown}
         userRole={userRole}
+        userProfile={userProfile}
         onLogout={handleLogout}
       />
 
@@ -304,6 +351,7 @@ function App() {
           userRole={userRole}
           userProfile={userProfile}
           setUserProfile={setUserProfile}
+          systemSettings={systemSettings}
         />
 
         <main className="content-area flex-grow-1">
@@ -314,6 +362,7 @@ function App() {
               onEdit={editIntern} 
               setActivePage={setActivePage}
               userRole={userRole}
+              systemSettings={systemSettings}
             />
           ) : ['all-transactions', 'add-income', 'add-expense', 'transfer-money'].includes(activePage) ? (
             <TransactionsPage
@@ -347,7 +396,7 @@ function App() {
                 refreshGlobalMasters={fetchAllMasters}
               />
             ) : (
-              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} />
+              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} systemSettings={systemSettings} />
             )
           ) : ['general-settings', 'preferences'].includes(activePage) ? (
             (userRole === 'Super Admin' || activePage === 'preferences') ? (
@@ -361,7 +410,7 @@ function App() {
                 onResetSettings={persistSettings}
               />
             ) : (
-              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} />
+              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} systemSettings={systemSettings} />
             )
           ) : activePage.endsWith('-master') ? (
             userRole === 'Super Admin' ? (
@@ -374,7 +423,7 @@ function App() {
                 refreshGlobalMasters={fetchAllMasters}
               />
             ) : (
-              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} />
+              <DashboardView interns={interns} setActivePage={setActivePage} userRole={userRole} systemSettings={systemSettings} />
             )
           ) : (
             <EmptyView pageId={activePage} />
