@@ -21,6 +21,9 @@ const handleResponse = async (response, { requiresAuth = false } = {}) => {
         data = text ? JSON.parse(text) : null;
     } else {
         const text = await response.text();
+        if (text && text.trim().toLowerCase().startsWith('<!doctype html>')) {
+            throw { status: 502, message: 'Bad Gateway: API route not found (received HTML instead of JSON)' };
+        }
         data = { message: text?.trim() || response.statusText || '' };
     }
 
