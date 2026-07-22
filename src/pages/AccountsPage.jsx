@@ -150,6 +150,23 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         setSelectedAccount(null);
     };
 
+    const handleCompanyChange = async (e) => {
+        const companyId = e.target.value;
+        setFormValues(v => ({ ...(v || {}), companyId }));
+        if (!selectedAccount && companyId) {
+            try {
+                const res = await apiService.get(`/accounts/next-code?companyId=${companyId}`);
+                if (res && res.code) {
+                    setFormValues(v => ({ ...(v || {}), code: res.code }));
+                }
+            } catch(err) {
+                console.error("Could not fetch next code", err);
+            }
+        } else if (!selectedAccount) {
+            setFormValues(v => ({ ...(v || {}), code: '' }));
+        }
+    };
+
     const allCompanies = useMemo(() => mastersData?.company || [], [mastersData]);
     const activeCompanies = useMemo(() => allCompanies.filter(c => c.status === 'Active'), [allCompanies]);
     const allBanks = useMemo(() => mastersData?.bank || [], [mastersData]);
@@ -159,9 +176,9 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         if (!formValues) return;
 
         const companyIdNum = Number(formValues.companyId);
-        const company = (mastersData?.company || []).find(c => c.id === companyIdNum);
+        const company = (mastersData?.company || []).find(c => String(c.id) === String(formValues.companyId));
         const bankIdNum = formValues.type === 'Bank' ? Number(formValues.bankId) : null;
-        const bank = formValues.type === 'Bank' ? (mastersData?.bank || []).find(b => b.id === bankIdNum) : null;
+        const bank = formValues.type === 'Bank' ? (mastersData?.bank || []).find(b => String(b.id) === String(formValues.bankId)) : null;
 
         const next = {
             companyId: companyIdNum,
@@ -181,10 +198,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
             Swal.fire('Validation Error', 'Company is required.', 'error');
             return;
         }
-        if (!next.code) {
-            Swal.fire('Validation Error', 'Account Code is required.', 'error');
-            return;
-        }
+
         if (!next.name) {
             Swal.fire('Validation Error', 'Account Name is required.', 'error');
             return;
@@ -210,6 +224,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                 Swal.fire({ icon: 'success', title: 'Saved', text: 'Account added successfully.', timer: 1500, showConfirmButton: false });
             }
             fetchAccounts();
+            if (typeof refreshGlobalMasters === 'function') refreshGlobalMasters();
             closeModal();
             if (setActivePage) setActivePage('all-accounts');
         } catch (error) {
@@ -239,6 +254,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                 try {
                     await apiService.delete(`/accounts/${id}`);
                     fetchAccounts();
+                    if (typeof refreshGlobalMasters === 'function') refreshGlobalMasters();
                     Swal.fire('Deleted!', 'Account has been removed.', 'success');
                 } catch (error) {
                     console.error('Error deleting account:', error);
@@ -970,7 +986,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                             <select
                                                 className="form-control-custom"
                                                 value={formValues?.companyId ?? ''}
-                                                onChange={(e) => setFormValues(v => ({ ...(v || {}), companyId: e.target.value }))}
+                                                onChange={handleCompanyChange}
                                             >
                                                 <option value="">Select Company</option>
                                                 {allCompanies.map(c => (
@@ -985,11 +1001,11 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                                             <input
                                                 type="text"
                                                 className="form-control-custom"
-                                                placeholder="e.g. AC-MAIN"
+                                                placeholder="Auto-generated"
                                                 value={formValues?.code ?? ''}
-                                                disabled={!!selectedAccount}
-                                                onChange={(e) => setFormValues(v => ({ ...(v || {}), code: e.target.value }))}
+                                                disabled={true}
                                             />
+                                            <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code is auto-generated</small>
                                         </div>
                                         <div className="col-md-6">
                                             <label className="form-label-custom">Account Name <span className="text-danger">*</span></label>

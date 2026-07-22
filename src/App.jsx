@@ -15,6 +15,7 @@ import AddInternModal from './modals/AddInternModal';
 import ProfileModal from './modals/ProfileModal';
 import SettingsModal from './modals/SettingsModal';
 import NotificationsModal from './modals/NotificationsModal';
+import DevTools from './components/DevTools';
 import Swal from 'sweetalert2';
 import { apiService } from './services/api';
 
@@ -50,11 +51,12 @@ function App() {
 
   const fetchAllMasters = async () => {
     try {
-      const [companies, banks, categories, modes] = await Promise.all([
+      const [companies, banks, categories, modes, allAccounts] = await Promise.all([
         apiService.getAllPages('/companies').catch(() => []),
         apiService.getAllPages('/banks').catch(() => []),
         apiService.getAllPages('/categories').catch(() => []),
-        apiService.getAllPages('/payment-modes').catch(() => [])
+        apiService.getAllPages('/payment-modes').catch(() => []),
+        apiService.getAllPages('/accounts').catch(() => [])
       ]);
       setMastersData({
         company: companies,
@@ -63,6 +65,7 @@ function App() {
         paymentMode: modes,
         employee: [] // Employees usually fetched on demand in MastersPage
       });
+      setAccounts(allAccounts);
     } catch (err) {
       console.error("Error fetching masters:", err);
     }
@@ -87,7 +90,8 @@ function App() {
         strongPasswordPolicy: true
       },
       system: {
-        enableNotifications: true
+        enableNotifications: true,
+        enableDevTools: true
       }
     },
     preferences: {
@@ -437,6 +441,14 @@ function App() {
       <ProfileModal />
       <SettingsModal />
       <NotificationsModal />
+      {systemSettings?.general?.system?.enableDevTools && (
+        <DevTools 
+          userRole={userRole} 
+          setUserRole={setUserRole} 
+          refreshData={fetchAllMasters} 
+          isVisible={userRole === 'Super Admin'} 
+        />
+      )}
     </div>
   );
 }

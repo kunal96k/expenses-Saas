@@ -42,13 +42,17 @@ const Pagination = ({
     onPageChange,
     onItemsPerPageChange,
 }) => {
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const validTotalItems = Number(totalItems) || 0;
+    const validItemsPerPage = Number(itemsPerPage) || 25;
+    const validCurrentPage = Number(currentPage) || 1;
 
-    if (totalItems === 0) return null;
+    const totalPages = Math.ceil(validTotalItems / validItemsPerPage);
 
-    const from  = (currentPage - 1) * itemsPerPage + 1;
-    const to    = Math.min(currentPage * itemsPerPage, totalItems);
-    const pages = getPageNumbers(currentPage, totalPages);
+    if (validTotalItems === 0) return null;
+
+    const from  = (validCurrentPage - 1) * validItemsPerPage + 1;
+    const to    = Math.min(validCurrentPage * validItemsPerPage, validTotalItems);
+    const pages = getPageNumbers(validCurrentPage, totalPages);
 
     return (
         <div className="pagination-wrapper">
@@ -58,7 +62,7 @@ const Pagination = ({
                 <span className="pag-label">Show</span>
                 <select
                     className="entries-select"
-                    value={itemsPerPage}
+                    value={validItemsPerPage}
                     onChange={e => onItemsPerPageChange(Number(e.target.value))}
                     aria-label="Entries per page"
                 >
@@ -76,7 +80,7 @@ const Pagination = ({
 
                 {/* Showing X to Y of Z */}
                 <span className="pagination-info">
-                    Showing <strong>{from}</strong>–<strong>{to}</strong> of <strong>{totalItems}</strong>
+                    Showing <strong>{from}</strong>–<strong>{to}</strong> of <strong>{validTotalItems}</strong>
                 </span>
 
                 <div className="pagination-controls-group">
@@ -84,7 +88,7 @@ const Pagination = ({
                     {/* First page */}
                     <button
                         className="page-btn-nav page-btn-edge"
-                        disabled={currentPage === 1}
+                        disabled={validCurrentPage === 1}
                         onClick={() => onPageChange(1)}
                         title="First page"
                         aria-label="First page"
@@ -95,8 +99,8 @@ const Pagination = ({
                     {/* Previous */}
                     <button
                         className="page-btn-nav"
-                        disabled={currentPage === 1}
-                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={validCurrentPage === 1}
+                        onClick={() => onPageChange(validCurrentPage - 1)}
                         aria-label="Previous page"
                     >
                         <i className="bi bi-chevron-left"></i>
@@ -114,10 +118,10 @@ const Pagination = ({
                             : (
                                 <button
                                     key={p}
-                                    className={`page-btn-num${currentPage === p ? ' active' : ''}`}
+                                    className={`page-btn-num${validCurrentPage === p ? ' active' : ''}`}
                                     onClick={() => onPageChange(p)}
                                     aria-label={`Page ${p}`}
-                                    aria-current={currentPage === p ? 'page' : undefined}
+                                    aria-current={validCurrentPage === p ? 'page' : undefined}
                                 >
                                     {p}
                                 </button>
@@ -127,8 +131,8 @@ const Pagination = ({
                     {/* Next */}
                     <button
                         className="page-btn-nav"
-                        disabled={currentPage === totalPages}
-                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={validCurrentPage === totalPages || totalPages === 0}
+                        onClick={() => onPageChange(validCurrentPage + 1)}
                         aria-label="Next page"
                     >
                         <span className="btn-nav-label">Next</span>
@@ -138,7 +142,7 @@ const Pagination = ({
                     {/* Last page */}
                     <button
                         className="page-btn-nav page-btn-edge"
-                        disabled={currentPage === totalPages}
+                        disabled={validCurrentPage === totalPages || totalPages === 0}
                         onClick={() => onPageChange(totalPages)}
                         title="Last page"
                         aria-label="Last page"

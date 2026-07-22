@@ -133,7 +133,10 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                     Swal.fire({ icon: 'success', title: 'Deleted!', text: 'Record removed.', timer: 1500, showConfirmButton: false });
                 } catch (error) {
                     console.error('Error deleting record:', error);
-                    Swal.fire('Error', `Failed to delete record. ${error.message}`, 'error');
+                    const errorMsg = error.status === 409 
+                        ? error.message 
+                        : `Failed to delete record. ${error.message}`;
+                    Swal.fire('Error', errorMsg, 'error');
                 }
             }
         });
@@ -268,12 +271,31 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
     };
 
 
-    const openModal = (item = null) => {
+    const openModal = async (item = null) => {
         if (!canManage) return;
         setSelectedItem(item);
+
+        let fetchedCode = '';
+        if (!item) {
+            try {
+                if (masterType === 'employee') {
+                    const res = await apiService.get('/employees/next-code');
+                    fetchedCode = res?.code || '';
+                } else if (masterType === 'company') {
+                    const res = await apiService.get('/companies/next-code');
+                    fetchedCode = res?.code || '';
+                } else if (masterType === 'bank') {
+                    const res = await apiService.get('/banks/next-code');
+                    fetchedCode = res?.code || '';
+                }
+            } catch(e) {
+                console.error("Could not fetch next code", e);
+            }
+        }
+
         if (masterType === 'employee') {
             setFormValues({
-                empCode: item?.empCode || '',
+                empCode: item?.empCode || fetchedCode,
                 name: item?.name || '',
                 email: item?.email || '',
                 phone: item?.phone || '',
@@ -289,7 +311,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
         }
         if (masterType === 'company') {
             setFormValues({
-                code: item?.code || '',
+                code: item?.code || fetchedCode,
                 name: item?.name || '',
                 type: item?.type || 'Pvt Ltd',
                 gst: item?.gst || '',
@@ -302,6 +324,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
             });
         } else if (masterType === 'bank') {
             setFormValues({
+                code: item?.code || fetchedCode,
                 name: item?.name || '',
                 ifsc: item?.ifsc || '',
                 branch: item?.branch || '',
@@ -333,12 +356,13 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
             setSelectedItem(null);
         } catch (error) {
             console.error('API Error:', error);
+            const isValidation = !!error.errors;
             const errorMsg = error.errors
                 ? Object.values(error.errors).map(msg => `• ${msg}`).join('<br/>')
                 : error.message;
 
             Swal.fire({
-                title: 'Validation Error',
+                title: isValidation ? 'Validation Error' : (error.status === 409 ? 'Conflict Error' : 'System Error'),
                 html: `<div class="text-start">${errorMsg}</div>`,
                 icon: 'error'
             });
@@ -373,6 +397,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
         if (masterType === 'bank') {
             const payload = {
+                code: (formValues?.code || '').trim().toUpperCase(),
                 name: (formValues?.name || '').trim(),
                 ifsc: (formValues?.ifsc || '').trim().toUpperCase(),
                 branch: (formValues?.branch || '').trim(),
@@ -432,8 +457,8 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                 sendCredentials: formValues?.sendCredentials || false
             };
 
-            if (!payload.empCode || !payload.name) {
-                Swal.fire('Validation', 'Employee code and name are required', 'error');
+            if (!payload.name) {
+                Swal.fire('Validation', 'Employee name is required', 'error');
                 return;
             }
 
@@ -591,6 +616,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                         <th>Address</th>
                                     </>}
                                     {masterType === 'bank' && <>
+                                        <th>Code</th>
                                         <th>Bank Name</th>
                                         <th>IFSC Code</th>
                                         <th>Branch</th>
@@ -647,8 +673,9 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                             <td className="small text-muted" style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.address}>{item.address || '—'}</td>
                                         </>}
                                         {masterType === 'bank' && <>
+                                            <td><code className="master-code-badge">{item.code}</code></td>
                                             <td className="fw-semibold">{item.name}</td>
-                                            <td><code className="master-code-badge">{item.ifsc || '—'}</code></td>
+                                            <td><code className="master-mono">{item.ifsc || '—'}</code></td>
                                             <td className="small text-muted">{item.branch || '—'}</td>
                                         </>}
                                         {masterType === 'payment-mode' && <>
@@ -706,7 +733,7 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                 <div className="mcard-title-block">
                                     {/* Title varies by type */}
                                     {masterType === 'company' && <><span className="mcard-code">{item.code}</span><span className="mcard-name">{item.name}</span></>}
-                                    {masterType === 'bank' && <span className="mcard-name">{item.name}</span>}
+                                    {masterType === 'bank' && <><span className="mcard-code">{item.code}</span><span className="mcard-name">{item.name}</span></>}
                                     {masterType === 'payment-mode' && <span className="mcard-name">{item.name}</span>}
                                     {masterType === 'category' && <span className="mcard-name">{item.name}</span>}
                                     {masterType === 'employee' && <><span className="mcard-code">{item.empCode || 'EMP'}</span><span className="mcard-name">{item.name || '-'}</span></>}
@@ -828,11 +855,10 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                                     type="text"
                                                     className="form-control-custom"
                                                     value={formValues?.empCode ?? ''}
-                                                    placeholder="e.g. EMP-001"
-                                                    disabled={!!selectedItem}
-                                                    onChange={e => setFormValues(v => ({ ...(v || {}), empCode: e.target.value }))}
+                                                    placeholder="Auto-generated"
+                                                    disabled={true}
                                                 />
-                                                {selectedItem && <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code cannot be changed after creation</small>}
+                                                <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code is auto-generated</small>
                                             </div>
                                             <div className="col-md-8">
                                                 <label className="form-label-custom">Employee Name <span className="text-danger">*</span></label>
@@ -914,11 +940,10 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
                                                     type="text"
                                                     className="form-control-custom"
                                                     value={formValues?.code ?? ''}
-                                                    placeholder="e.g. ACME"
-                                                    disabled={!!selectedItem}
-                                                    onChange={e => setFormValues(v => ({ ...(v || {}), code: e.target.value }))}
+                                                    placeholder="Auto-generated"
+                                                    disabled={true}
                                                 />
-                                                {selectedItem && <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code cannot be changed after creation</small>}
+                                                <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code is auto-generated</small>
                                             </div>
                                             <div className="col-md-8">
                                                 <label className="form-label-custom">Company Name <span className="text-danger">*</span></label>
@@ -1007,6 +1032,17 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
 
                                         {/* ── Bank Fields ── */}
                                         {masterType === 'bank' && <>
+                                            <div className="col-md-4">
+                                                <label className="form-label-custom">Bank Code <span className="text-danger">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control-custom"
+                                                    value={formValues?.code ?? ''}
+                                                    placeholder="Auto-generated"
+                                                    disabled={true}
+                                                />
+                                                <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Code is auto-generated</small>
+                                            </div>
                                             <div className="col-md-8">
                                                 <label className="form-label-custom">Bank Name <span className="text-danger">*</span></label>
                                                 <input

@@ -23,6 +23,7 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
     const [itemsPerPage, setItemsPerPage] = useState(25);
     const [totalElements, setTotalElements] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [isActionLoading, setIsActionLoading] = useState(false);
 
     // Data State
     const [transactions, setTransactions] = useState([]);
@@ -125,6 +126,13 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
     const [activeModal, setActiveModal] = useState(null);
     const [selectedTxn, setSelectedTxn] = useState(null);
     const [formValues, setFormValues] = useState(null);
+    const [persistedFields, setPersistedFields] = useState({
+        paymentModeId: '',
+        reference: '',
+        description: '',
+        categoryId: '',
+        status: 'Completed'
+    });
 
     useEffect(() => {
         if (activePage === 'add-income') openModal('addReceived');
@@ -160,11 +168,11 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                 toAccountId: '',
                 toExternal: '',
                 amount: '',
-                paymentModeId: '',
-                reference: '',
-                description: '',
-                categoryId: '',
-                status: 'Completed'
+                paymentModeId: persistedFields.paymentModeId,
+                reference: persistedFields.reference,
+                description: persistedFields.description,
+                categoryId: persistedFields.categoryId,
+                status: persistedFields.status
             });
         }
         setActiveModal(modalName);
@@ -187,6 +195,40 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
             return;
         }
 
+        if (!formValues.paymentModeId) {
+            Swal.fire('Validation Error', 'Payment Mode is required.', 'error');
+            return;
+        }
+
+        if (formValues.type === 'Received') {
+            if (!formValues.fromExternal && !formValues.fromAccountId) {
+                Swal.fire('Validation Error', 'Source (Account or External Party) is required.', 'error');
+                return;
+            }
+            if (!formValues.toAccountId) {
+                Swal.fire('Validation Error', 'Destination Account is required.', 'error');
+                return;
+            }
+        } else if (formValues.type === 'Paid') {
+            if (!formValues.fromAccountId) {
+                Swal.fire('Validation Error', 'Source Account is required.', 'error');
+                return;
+            }
+            if (!formValues.toExternal && !formValues.toAccountId) {
+                Swal.fire('Validation Error', 'Destination (Account or External Party) is required.', 'error');
+                return;
+            }
+        } else if (formValues.type === 'Moved') {
+            if (!formValues.fromAccountId || !formValues.toAccountId) {
+                Swal.fire('Validation Error', 'Both Source and Destination accounts are required for a transfer.', 'error');
+                return;
+            }
+            if (String(formValues.fromAccountId) === String(formValues.toAccountId)) {
+                Swal.fire('Validation Error', 'Source and Destination accounts cannot be the same.', 'error');
+                return;
+            }
+        }
+
         if ((formValues.type === 'Paid' || formValues.type === 'Moved') && formValues.fromAccountId) {
             const sourceAccount = allAccounts.find(a => String(a.id) === String(formValues.fromAccountId));
             const sourceBalance = Number(sourceAccount?.balance || 0);
@@ -200,46 +242,73 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
             }
         }
 
+        const payload = {
+            ...formValues,
+            amount: amountValue,
+            fromAccountId: formValues.fromAccountId ? Number(formValues.fromAccountId) : null,
+            toAccountId: formValues.toAccountId ? Number(formValues.toAccountId) : null,
+            paymentModeId: formValues.paymentModeId ? Number(formValues.paymentModeId) : null,
+            categoryId: formValues.categoryId ? Number(formValues.categoryId) : null
+        };
+
+        setIsActionLoading(true);
         try {
             if (formValues.id) {
-                await apiService.put(`/transactions/${formValues.id}`, formValues);
+                await apiService.put(`/transactions/${formValues.id}`, payload);
                 Swal.fire({ icon: 'success', title: 'Updated!', text: 'Transaction updated successfully.', timer: 1500, showConfirmButton: false });
             } else {
-                await apiService.post('/transactions', formValues);
+                await apiService.post('/transactions', payload);
+                setPersistedFields({
+                    paymentModeId: formValues.paymentModeId || '',
+                    reference: formValues.reference || '',
+                    description: formValues.description || '',
+                    categoryId: formValues.categoryId || '',
+                    status: formValues.status || 'Completed'
+                });
                 Swal.fire({ icon: 'success', title: 'Saved!', text: 'Transaction saved successfully.', timer: 1500, showConfirmButton: false });
             }
             fetchTransactions();
+            if (typeof refreshGlobalMasters === 'function') refreshGlobalMasters();
             closeModal();
         } catch (error) {
             console.error('Error saving transaction:', error);
+            const isValidation = !!error.errors;
             const errorMsg = error.errors 
                 ? Object.values(error.errors).map(msg => `• ${msg}`).join('<br/>') 
                 : (error.message || 'Failed to save transaction.');
 
             Swal.fire({
-                title: 'Validation Error',
+                title: isValidation ? 'Validation Error' : 'Transaction Error',
                 html: `<div class="text-start">${errorMsg}</div>`,
                 icon: 'error'
             });
+        } finally {
+            setIsActionLoading(false);
         }
     };
 
     const handleDelete = (id) => {
         Swal.fire({
             title: 'Delete Transaction?',
-            text: "This action cannot be undone!",
+            html: '<div class="text-start">This will <strong>reverse the balance</strong> changes made by this transaction.<br/><br/>This action cannot be undone!</div>',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
-            confirmButtonText: 'Yes, Delete'
+            confirmButtonText: 'Yes, Delete',
+            cancelButtonText: 'Cancel'
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
                     await apiService.delete(`/transactions/${id}`);
                     fetchTransactions();
-                    Swal.fire('Deleted!', 'Transaction has been removed.', 'success');
+                    if (typeof refreshGlobalMasters === 'function') refreshGlobalMasters();
+                    Swal.fire({ icon: 'success', title: 'Deleted!', text: 'Transaction removed and balances restored.', timer: 1500, showConfirmButton: false });
                 } catch (error) {
-                    Swal.fire('Error', 'Failed to delete transaction.', 'error');
+                    console.error('Error deleting transaction:', error);
+                    const errorMsg = error.status === 409 
+                        ? 'This transaction is linked to other records and cannot be deleted.'
+                        : (error.message || 'Failed to delete transaction.');
+                    Swal.fire('Error', errorMsg, 'error');
                 }
             }
         });
@@ -537,6 +606,7 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                     activeModal={activeModal} 
                     selectedTxn={selectedTxn} 
                     closeModal={closeModal} 
+                    loading={isActionLoading}
                     onGoToAddAccount={() => {
                         closeModal();
                         if (setActivePage) setActivePage('add-account');
@@ -573,7 +643,8 @@ const TransactionModals = ({
     allCompanies,
     allAccounts,
     allCategories,
-    allModes
+    allModes,
+    loading: isActionLoading
 }) => {
     if (!activeModal) return null;
 
@@ -642,7 +713,7 @@ const TransactionModals = ({
             {/* Add/Edit Transaction Modal */}
             {['addReceived', 'addPaid', 'transferMoney', 'editTransaction'].includes(activeModal) && (
                 <div className="modal fade show d-block transaction-modal" tabIndex="-1">
-                    <div className="modal-dialog modal-dialog-centered modal-lg">
+                    <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
                         <div className="modal-content border-0 shadow-lg">
                             <div className="modal-header border-0 pb-0">
                                 <h5 className="modal-title fw-bold">
@@ -803,7 +874,10 @@ const TransactionModals = ({
                                     </div>
                                 </div>
                                 <div className="mt-4">
-                                    <button className="btn btn-primary-custom w-100 py-3 rounded-3" onClick={handleSave}>
+                                    <button className="btn btn-primary-custom w-100 py-3 rounded-3" onClick={handleSave} disabled={isActionLoading}>
+                                        {isActionLoading ? (
+                                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        ) : null}
                                         {formValues.id ? 'Update' : 'Confirm'} {formValues.type}
                                     </button>
                                 </div>

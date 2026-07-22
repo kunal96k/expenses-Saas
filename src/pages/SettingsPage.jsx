@@ -199,6 +199,9 @@ const SettingsPage = ({ activePage, userRole, systemSettings, setSystemSettings,
               <SettingsRow iconClass="bi-bell" iconBg="s-icon-slate" label="Enable Notifications" desc="Show system alerts and important operational notifications.">
                 <SettingsSwitch checked={!!settings.general.system.enableNotifications} disabled={!canEdit} onChange={(v) => setAtPath(['general', 'system', 'enableNotifications'], v)} />
               </SettingsRow>
+              <SettingsRow iconClass="bi-code-square" iconBg="s-icon-slate" label="Enable Developer Tools" desc="Show floating developer support gear icon for Super Admins.">
+                <SettingsSwitch checked={!!settings.general.system.enableDevTools} disabled={!canEdit} onChange={(v) => setAtPath(['general', 'system', 'enableDevTools'], v)} />
+              </SettingsRow>
             </div>
           </div>
         </>
