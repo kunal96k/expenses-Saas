@@ -118,13 +118,18 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
       onMouseLeave={() => isCollapsed && setIsHovered(false)}
     >
       <div className="sidebar-header">
-        <div className="brand">
-          <div className="brand-logo">
-            <img src="/assets/tts-logo-ev.png" alt="TechnoKraft Logo" />
+        <div className="logo-container">
+          <div className="logo">
+            <img src="/assets/images/tts-logo-ev.png" alt="TechnoKraft Logo" className="logo-img" />
           </div>
-          <div className="brand-content">
+
+          <div className="logo-collapsed">
+            <img src="/assets/images/tts-logo-ev.png" alt="TechnoKraft Logo" className="logo-img-collapsed" />
+          </div>
+
+          <div className="brand-info">
             <span className="brand-text">TechnoKraft</span>
-            <p className="brand-subtitle">Training and Solutions</p>
+            <span className="app-subtitle">Training &amp; Solution</span>
           </div>
         </div>
       </div>

@@ -10,8 +10,25 @@ const getAuthHeader = () => {
     }
 };
 
+const dispatchMaintenanceEvent = (detail) => {
+    try {
+        window.dispatchEvent(new CustomEvent('expenses:server-maintenance', { detail }));
+    } catch {
+        // no-op
+    }
+};
+
 const handleResponse = async (response, { requiresAuth = false } = {}) => {
     if (response.status === 204) return null;
+    
+    // Check for Server Down / Bad Gateway / Service Unavailable / Gateway Timeout
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+        dispatchMaintenanceEvent({
+            status: response.status,
+            message: `Server Error (${response.status}): Backend service is unavailable or restarting.`,
+            url: response.url
+        });
+    }
     
     const contentType = response.headers.get("content-type");
     let data = null;
@@ -22,7 +39,14 @@ const handleResponse = async (response, { requiresAuth = false } = {}) => {
     } else {
         const text = await response.text();
         if (text && text.trim().toLowerCase().startsWith('<!doctype html>')) {
-            throw { status: 502, message: 'Bad Gateway: API route not found (received HTML instead of JSON)' };
+            if (response.status >= 500) {
+                dispatchMaintenanceEvent({
+                    status: response.status || 502,
+                    message: 'Bad Gateway: Backend service unreachable',
+                    url: response.url
+                });
+            }
+            throw { status: response.status || 502, message: 'Bad Gateway: API route not found (received HTML instead of JSON)' };
         }
         data = { message: text?.trim() || response.statusText || '' };
     }
@@ -46,6 +70,8 @@ const handleResponse = async (response, { requiresAuth = false } = {}) => {
                     ? 'Too many requests. Please try again later.'
                 : response.status === 404
                     ? 'Resource not found'
+                : response.status >= 500
+                    ? 'Server is currently undergoing maintenance. Please wait.'
                     : 'Something went wrong';
         const message = data?.message || data?.error || response.statusText || defaultByStatus;
         const error = {
@@ -61,6 +87,22 @@ const handleResponse = async (response, { requiresAuth = false } = {}) => {
     return data;
 };
 
+const safeFetch = async (url, options = {}, { requiresAuth = false } = {}) => {
+    try {
+        const response = await fetch(url, options);
+        return await handleResponse(response, { requiresAuth });
+    } catch (error) {
+        if (error?.name === 'TypeError' || error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+            dispatchMaintenanceEvent({
+                status: 503,
+                message: 'Connection Failed: Backend service is unreachable.',
+                url
+            });
+        }
+        throw error;
+    }
+};
+
 export const apiService = {
     setBasicAuth: (username, password) => {
         const token = btoa(`${username}:${password}`);
@@ -73,26 +115,23 @@ export const apiService = {
     },
 
     getPublic: async (endpoint, headers = {}) => {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
+        return safeFetch(`${BASE_URL}${endpoint}`, {
             headers: { ...headers }
-        });
-        return handleResponse(response, { requiresAuth: false });
+        }, { requiresAuth: false });
     },
 
     postPublic: async (endpoint, body, headers = {}) => {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
+        return safeFetch(`${BASE_URL}${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...headers },
             body: JSON.stringify(body)
-        });
-        return handleResponse(response, { requiresAuth: false });
+        }, { requiresAuth: false });
     },
 
     get: async (endpoint, headers = {}) => {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
+        return safeFetch(`${BASE_URL}${endpoint}`, {
             headers: { ...getAuthHeader(), ...headers }
-        });
-        return handleResponse(response, { requiresAuth: true });
+        }, { requiresAuth: true });
     },
 
     getAllPages: async (endpoint, {
@@ -122,38 +161,33 @@ export const apiService = {
     },
 
     post: async (endpoint, body, headers = {}) => {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
+        return safeFetch(`${BASE_URL}${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader(), ...headers },
             body: JSON.stringify(body)
-        });
-        return handleResponse(response, { requiresAuth: true });
+        }, { requiresAuth: true });
     },
 
     put: async (endpoint, body, headers = {}) => {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
+        return safeFetch(`${BASE_URL}${endpoint}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader(), ...headers },
             body: JSON.stringify(body)
-        });
-        return handleResponse(response, { requiresAuth: true });
+        }, { requiresAuth: true });
     },
 
     patch: async (endpoint, body = {}, headers = {}) => {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
+        return safeFetch(`${BASE_URL}${endpoint}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader(), ...headers },
             body: JSON.stringify(body)
-        });
-        return handleResponse(response, { requiresAuth: true });
+        }, { requiresAuth: true });
     },
 
     delete: async (endpoint, headers = {}) => {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
+        return safeFetch(`${BASE_URL}${endpoint}`, {
             method: 'DELETE',
             headers: { ...getAuthHeader(), ...headers }
-        });
-        if (response.status === 204) return null;
-        return handleResponse(response, { requiresAuth: true });
+        }, { requiresAuth: true });
     }
 };

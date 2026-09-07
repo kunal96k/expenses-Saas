@@ -1,0 +1,449 @@
+/* MaintenanceView.css - Server Under Maintenance View */
+
+.maintenance-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0a0e1a;
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #f8fafc;
+}
+
+/* Background grid overlay */
+.maintenance-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Ambient glowing orbs */
+.maint-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 1;
+  animation: maintFloatOrb 15s ease-in-out infinite alternate;
+}
+
+.maint-orb-blue {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #3b82f6 0%, rgba(59, 130, 246, 0) 70%);
+  top: -120px;
+  left: -120px;
+}
+
+.maint-orb-indigo {
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, #6366f1 0%, rgba(99, 102, 241, 0) 70%);
+  bottom: -100px;
+  right: -100px;
+  animation-duration: 18s;
+  animation-delay: -4s;
+}
+
+.maint-orb-amber {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, #f59e0b 0%, rgba(245, 158, 11, 0) 70%);
+  bottom: 25%;
+  left: 20%;
+  opacity: 0.2;
+  animation-duration: 12s;
+  animation-delay: -2s;
+}
+
+@keyframes maintFloatOrb {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(35px, 25px) scale(1.08); }
+  100% { transform: translate(-25px, 40px) scale(0.95); }
+}
+
+/* Glassmorphism Card Container */
+.maintenance-card-container {
+  position: relative;
+  z-index: 10;
+  max-width: 600px;
+  width: 100%;
+  background: rgba(16, 23, 42, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 24px;
+  padding: 44px 38px;
+  box-shadow: 
+    0 25px 60px -15px rgba(0, 0, 0, 0.75),
+    0 0 35px rgba(59, 130, 246, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  text-align: center;
+  animation: maintCardIn 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes maintCardIn {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Status Pill Badge */
+.maint-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fbbf24;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.maint-pulse-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #f59e0b;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  animation: maintPulse 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+@keyframes maintPulse {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* Center Server + Gear Graphic */
+.maint-graphic-box {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.maint-graphic-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, rgba(99, 102, 241, 0) 70%);
+  animation: maintGlowPulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes maintGlowPulse {
+  0% { transform: scale(0.9); opacity: 0.4; }
+  100% { transform: scale(1.2); opacity: 0.8; }
+}
+
+.maint-icon-square {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    0 15px 35px -5px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+}
+
+.maint-gear-icon {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 30px;
+  height: 30px;
+  color: #f59e0b;
+  animation: maintSpinGear 8s linear infinite;
+}
+
+@keyframes maintSpinGear {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.maint-server-icon {
+  width: 48px;
+  height: 48px;
+  color: #818cf8;
+  filter: drop-shadow(0 4px 10px rgba(99, 102, 241, 0.4));
+}
+
+/* Typography */
+.maint-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.maint-description {
+  font-size: 0.96rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin-bottom: 26px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Status Info Box */
+.maint-info-bar {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px 18px;
+  margin-bottom: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.maint-info-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.maint-badge-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+.maint-status-text {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.maint-endpoint-text {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.maint-timer-pill {
+  padding: 6px 12px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #93c5fd;
+  white-space: nowrap;
+}
+
+/* Actions Group - STRICT RULE: NEVER USE translateY IN HOVER */
+.maint-btn-group {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.maint-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 26px;
+  background: linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.94rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, filter 0.25s ease;
+}
+
+/* Hover without translateY */
+.maint-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #4338ca 100%);
+  box-shadow: 0 0 24px rgba(79, 70, 229, 0.5), 0 0 10px rgba(59, 130, 246, 0.4);
+  border-color: rgba(255, 255, 255, 0.35);
+  filter: brightness(1.08);
+}
+
+.maint-btn-primary:active:not(:disabled) {
+  filter: brightness(0.92);
+  box-shadow: 0 0 12px rgba(79, 70, 229, 0.3);
+}
+
+.maint-btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.maint-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 22px;
+  background: rgba(30, 41, 59, 0.7);
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 0.94rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* Hover without translateY */
+.maint-btn-secondary:hover {
+  background-color: rgba(51, 65, 85, 0.85);
+  border-color: rgba(148, 163, 184, 0.4);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.08);
+}
+
+.maint-btn-secondary:active {
+  background-color: rgba(30, 41, 59, 0.95);
+}
+
+/* Diagnostics Toggle & Drawer */
+.maint-diag-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.maint-diag-btn:hover {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.maint-diag-box {
+  background: rgba(10, 15, 29, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem;
+  color: #94a3b8;
+  margin-top: 10px;
+  animation: maintFadeIn 0.3s ease;
+}
+
+@keyframes maintFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.maint-diag-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  padding-bottom: 4px;
+}
+
+.maint-diag-lbl {
+  color: #64748b;
+}
+
+.maint-diag-val {
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+/* Footer Notice */
+.maint-footer-bar {
+  margin-top: 24px;
+  font-size: 0.78rem;
+  color: #64748b;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.maint-footer-link {
+  color: #3b82f6;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.maint-footer-link:hover {
+  color: #93c5fd;
+  text-decoration: underline;
+}
+
+@media (max-width: 540px) {
+  .maintenance-card-container {
+    padding: 32px 20px;
+    border-radius: 18px;
+  }
+  .maint-title {
+    font-size: 1.5rem;
+  }
+  .maint-btn-group {
+    flex-direction: column;
+    width: 100%;
+  }
+  .maint-btn-primary, .maint-btn-secondary {
+    width: 100%;
+  }
+  .maint-info-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .maint-timer-pill {
+    align-self: flex-start;
+  }
+}

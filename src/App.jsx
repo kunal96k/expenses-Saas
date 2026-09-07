@@ -5,6 +5,7 @@ import Footer from './components/Footer';
 import DashboardView from './views/DashboardView';
 import EmptyView from './views/EmptyView';
 import LoginView from './views/LoginView';
+import MaintenanceView from './views/MaintenanceView';
 import TransactionsPage from './pages/TransactionsPage';
 import AccountsPage from './pages/AccountsPage.jsx';
 import ReportsPage from './pages/ReportsPage';
@@ -34,6 +35,8 @@ function App() {
       return false;
     }
   });
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+  const [maintenanceDetails, setMaintenanceDetails] = useState(null);
   const [userRole, setUserRole] = useState('Viewer');
   const [activePage, setActivePage] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -283,8 +286,17 @@ function App() {
       });
     };
 
+    const onMaintenanceTriggered = (event) => {
+      setMaintenanceDetails(event?.detail || null);
+      setIsMaintenanceMode(true);
+    };
+
     window.addEventListener('expenses:session-expired', onSessionExpired);
-    return () => window.removeEventListener('expenses:session-expired', onSessionExpired);
+    window.addEventListener('expenses:server-maintenance', onMaintenanceTriggered);
+    return () => {
+      window.removeEventListener('expenses:session-expired', onSessionExpired);
+      window.removeEventListener('expenses:server-maintenance', onMaintenanceTriggered);
+    };
   }, []);
 
   useEffect(() => {
@@ -322,6 +334,22 @@ function App() {
     const theme = String(systemSettings?.preferences?.ui?.theme || 'Light').toLowerCase();
     document.body.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
   }, [systemSettings?.preferences?.ui?.theme]);
+
+  // If server is in maintenance mode or backend crashed
+  if (isMaintenanceMode) {
+    return (
+      <MaintenanceView 
+        errorDetails={maintenanceDetails}
+        onRestore={() => {
+          setIsMaintenanceMode(false);
+          setMaintenanceDetails(null);
+          if (isAuthenticated) {
+            fetchAllMasters();
+          }
+        }}
+      />
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginView onLogin={handleLogin} />;

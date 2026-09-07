@@ -2,6 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import Pagination from '../components/Pagination';
 import { apiService } from '../services/api';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import './AccountsPage.css';
 
 const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accounts, setAccounts }) => {
@@ -362,6 +365,188 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         return { opening, totalCredit, totalDebit, closing };
     }, [activeAccountStatement, filteredStatementRows]);
 
+    const sanitizePdfText = (val) => String(val ?? '').replace(/[^\x00-\x7F]/g, ' ').trim();
+
+    const exportStatementExcel = () => {
+        try {
+            if (!filteredStatementRows.length) {
+                Swal.fire('No data', 'No rows available for export.', 'info');
+                return;
+            }
+            const wb = XLSX.utils.book_new();
+            const summaryData = [
+                ['Account Name', activeAccountStatement?.name || 'N/A'],
+                ['Company', activeAccountStatement?.companyName || 'N/A'],
+                ['Account Code', activeAccountStatement?.code || 'N/A'],
+                ['Type', activeAccountStatement?.type || 'N/A'],
+                ['Opening Balance', activeAccountStatement?.openingBalance ?? 0],
+                ['Total Received', statementTotals.totalCredit],
+                ['Total Paid', statementTotals.totalDebit],
+                ['Closing Balance', statementTotals.closing],
+                ['Total Transactions', filteredStatementRows.length]
+            ];
+            const summarySheet = XLSX.utils.aoa_to_sheet([['Field', 'Value'], ...summaryData]);
+            const columns = ['Date', 'ID', 'Description', 'From / To', 'Type', 'Mode', 'Reference', 'Debit', 'Credit', 'Balance'];
+            const tableRows = filteredStatementRows.map((r) => ({
+                Date: r.date || '-',
+                ID: `TXT${String(r.id).padStart(6, '0')}`,
+                Description: r.description || '-',
+                'From / To': r.fromTo || '-',
+                Type: r.type || '-',
+                Mode: r.mode || '-',
+                Reference: r.ref || '-',
+                Debit: Number(r.debit || 0),
+                Credit: Number(r.credit || 0),
+                Balance: Number(r.balance || 0)
+            }));
+            const tableSheet = XLSX.utils.json_to_sheet(tableRows, { header: columns });
+            XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+            XLSX.utils.book_append_sheet(wb, tableSheet, 'Statement');
+            XLSX.writeFile(wb, `${activeAccountStatement?.name || 'account'}-statement.xlsx`);
+        } catch (err) {
+            Swal.fire('Export failed', err?.message || 'Unable to export Excel statement', 'error');
+        }
+    };
+
+    const exportStatementPdf = () => {
+        try {
+            if (!filteredStatementRows.length) {
+                Swal.fire('No data', 'No rows available for export.', 'info');
+                return;
+            }
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+
+            // Header band
+            doc.setFillColor(15, 23, 42);
+            doc.rect(0, 0, pageW, 72, 'F');
+
+            // Logo block
+            doc.setFillColor(92, 103, 242);
+            doc.roundedRect(30, 16, 38, 38, 4, 4, 'F');
+            doc.setFontSize(18);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('T', 42, 41);
+
+            // Title
+            doc.setFontSize(16);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${sanitizePdfText(activeAccountStatement?.name || 'Account')} - Statement`, 80, 33);
+
+            doc.setFontSize(8.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(148, 163, 184);
+            doc.text(`Company: ${sanitizePdfText(activeAccountStatement?.companyName || 'N/A')} | Code: ${sanitizePdfText(activeAccountStatement?.code || 'N/A')}`, 80, 48);
+
+            // Generated date
+            doc.setFontSize(7.5);
+            doc.setTextColor(148, 163, 184);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - 30, 30, { align: 'right' });
+            doc.setFillColor(92, 103, 242);
+            doc.roundedRect(pageW - 110, 40, 80, 16, 3, 3, 'F');
+            doc.setFontSize(7);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('STATEMENT', pageW - 70, 51, { align: 'center' });
+
+            // Summary cards
+            const summaryCards = [
+                ['Opening Balance', `INR ${(activeAccountStatement?.openingBalance || 0).toLocaleString('en-IN')}`],
+                ['Total Received', `INR ${statementTotals.totalCredit.toLocaleString('en-IN')}`],
+                ['Total Paid', `INR ${statementTotals.totalDebit.toLocaleString('en-IN')}`],
+                ['Closing Balance', `INR ${statementTotals.closing.toLocaleString('en-IN')}`],
+                ['Transactions', String(filteredStatementRows.length)]
+            ];
+            let cardY = 90;
+            const cols = summaryCards.length;
+            const cardW = Math.min(150, (pageW - 60) / cols);
+            const totalCardW = cols * cardW + (cols - 1) * 10;
+            let cardX = (pageW - totalCardW) / 2;
+
+            summaryCards.forEach(([label, value]) => {
+                doc.setFillColor(248, 250, 252);
+                doc.roundedRect(cardX, cardY, cardW, 44, 4, 4, 'F');
+                doc.setDrawColor(226, 232, 240);
+                doc.setLineWidth(0.5);
+                doc.roundedRect(cardX, cardY, cardW, 44, 4, 4, 'S');
+
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 116, 139);
+                doc.text(label.toUpperCase(), cardX + cardW / 2, cardY + 13, { align: 'center' });
+
+                doc.setFontSize(9.5);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(15, 23, 42);
+                doc.text(value, cardX + cardW / 2, cardY + 30, { align: 'center' });
+
+                cardX += cardW + 10;
+            });
+
+            // Table
+            const columns = ['Date', 'ID', 'Description', 'From / To', 'Type', 'Mode', 'Reference', 'Debit', 'Credit', 'Balance'];
+            const tableRows = filteredStatementRows.map((r) => [
+                sanitizePdfText(r.date || '-'),
+                `TXT${String(r.id).padStart(6, '0')}`,
+                sanitizePdfText(r.description || '-'),
+                sanitizePdfText(r.fromTo || '-'),
+                sanitizePdfText(r.type || '-'),
+                sanitizePdfText(r.mode || '-'),
+                sanitizePdfText(r.ref || '-'),
+                Number(r.debit || 0) > 0 ? Number(r.debit).toLocaleString('en-IN') : '-',
+                Number(r.credit || 0) > 0 ? Number(r.credit).toLocaleString('en-IN') : '-',
+                Number(r.balance || 0).toLocaleString('en-IN')
+            ]);
+
+            autoTable(doc, {
+                startY: cardY + 60,
+                head: [columns],
+                body: tableRows,
+                theme: 'plain',
+                headStyles: {
+                    fillColor: [15, 23, 42],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    fontSize: 7.5,
+                    cellPadding: { top: 8, bottom: 8, left: 6, right: 6 }
+                },
+                bodyStyles: {
+                    fontSize: 7.5,
+                    cellPadding: { top: 6, bottom: 6, left: 6, right: 6 },
+                    lineColor: [241, 245, 249],
+                    lineWidth: { bottom: 0.5 },
+                    textColor: [51, 65, 85]
+                },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                columnStyles: {
+                    7: { halign: 'right' },
+                    8: { halign: 'right' },
+                    9: { halign: 'right' }
+                },
+                margin: { left: 20, right: 20, top: 72, bottom: 30 }
+            });
+
+            doc.save(`${activeAccountStatement?.name || 'account'}-statement.pdf`);
+        } catch (err) {
+            Swal.fire('Export failed', err?.message || 'Unable to export PDF statement', 'error');
+        }
+    };
+
+    const printStatement = () => {
+        try {
+            if (!filteredStatementRows.length) {
+                Swal.fire('No data', 'No rows available for print.', 'info');
+                return;
+            }
+            window.print();
+        } catch (err) {
+            Swal.fire('Print failed', err?.message || 'Unable to print', 'error');
+        }
+    };
+
     const paginatedAccounts = accounts || [];
 
     const handleSort = (key) => {
@@ -383,9 +568,9 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                             <i className="bi bi-arrow-left"></i> Back to Accounts
                         </button>
                         <div className="d-flex flex-wrap gap-2">
-                            <button className="btn btn-sm btn-light border" title="Exports current filtered data"><i className="bi bi-file-pdf text-danger"></i> Export PDF</button>
-                            <button className="btn btn-sm btn-light border" title="Exports current filtered data"><i className="bi bi-file-excel text-success"></i> Export Excel</button>
-                            <button className="btn btn-sm btn-primary-custom" title="Exports current filtered data"><i className="bi bi-printer"></i> Print</button>
+                            <button className="btn btn-sm btn-light border" onClick={exportStatementPdf} disabled={filteredStatementRows.length === 0} title="Export Statement as PDF"><i className="bi bi-file-pdf text-danger"></i> Export PDF</button>
+                            <button className="btn btn-sm btn-light border" onClick={exportStatementExcel} disabled={filteredStatementRows.length === 0} title="Export Statement as Excel"><i className="bi bi-file-excel text-success"></i> Export Excel</button>
+                            <button className="btn btn-sm btn-primary-custom" onClick={printStatement} disabled={filteredStatementRows.length === 0} title="Print Statement"><i className="bi bi-printer"></i> Print</button>
                         </div>
                     </div>
 

@@ -1060,8 +1060,8 @@ const ReportsPage = ({ activePage, userRole }) => {
             {/* Export Actions */}
             {!isGenerating && (
                 <div className="export-actions mt-4 mb-5">
-                    <button className="btn-export pdf" onClick={exportToPdf} disabled={isViewer || !hasExportableData} title={isViewer ? 'Viewer can print only' : ''}><i className="bi bi-file-earmark-pdf"></i> Export PDF</button>
-                    <button className="btn-export excel" onClick={exportToExcel} disabled={isViewer || !hasExportableData} title={isViewer ? 'Viewer can print only' : ''}><i className="bi bi-file-earmark-excel"></i> Export Excel</button>
+                    <button className="btn-export pdf" onClick={exportToPdf} disabled={!hasExportableData}><i className="bi bi-file-earmark-pdf"></i> Export PDF</button>
+                    <button className="btn-export excel" onClick={exportToExcel} disabled={!hasExportableData}><i className="bi bi-file-earmark-excel"></i> Export Excel</button>
                     <button className="btn-export print" onClick={printReport} disabled={!hasExportableData}><i className="bi bi-printer"></i> Print Report</button>
                 </div>
             )}
