@@ -397,7 +397,7 @@ const Header = ({ activePage, toggleSidebar, onPageChange, onLogout, userRole, u
                         <div className="modal-body px-4 pt-3 pb-4 text-center">
                             <img src="https://illustrations.popsy.co/amber/customer-service.svg" alt="Support" className="img-fluid mb-3" style={{ maxHeight: '140px' }} />
                             <h5 className="fw-bold">Need assistance?</h5>
-                            <p className="text-muted small mb-4">Our support team is here to help you with any issues or questions about the Capernaum SaaS application.</p>
+                            <p className="text-muted small mb-4">Our support team is here to help you with any issues or questions about the TechnoKraft Expenses SaaS application (v3.1).</p>
                             <div className="d-flex flex-column gap-2">
                                 <a href="mailto:support@technokraft.com" className="btn btn-light rounded-pill fw-bold text-start border d-flex align-items-center">
                                     <div className="bg-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style={{ width: '32px', height: '32px' }}><i className="bi bi-envelope text-primary"></i></div>

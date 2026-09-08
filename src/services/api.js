@@ -153,8 +153,10 @@ export const apiService = {
             });
             if (search) params.set('search', search);
             const result = await apiService.get(`${endpoint}?${params.toString()}`);
-            rows.push(...(result?.content || []));
-            totalPages = Math.max(Number(result?.totalPages || 0), 1);
+            const items = result?.content || (Array.isArray(result) ? result : []);
+            rows.push(...items);
+            if (Array.isArray(result)) break;
+            totalPages = Math.max(Number(result?.page?.totalPages ?? result?.totalPages ?? 0), 1);
             page += 1;
         }
         return rows;

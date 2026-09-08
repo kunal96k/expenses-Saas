@@ -73,9 +73,9 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
             if (filters.type !== 'all') params.append('type', filters.type);
 
             const response = await apiService.get(`/accounts?${params.toString()}`);
-            setAccounts(response.content);
-            setTotalElements(response.totalElements);
-            setTotalPages(response.totalPages);
+            setAccounts(response?.content || []);
+            setTotalElements(response?.page?.totalElements ?? response?.totalElements ?? 0);
+            setTotalPages(response?.page?.totalPages ?? response?.totalPages ?? 0);
         } catch (error) {
             console.error('Error fetching accounts:', error);
             // Swal.fire('Error', 'Failed to load accounts. ' + error.message, 'error');
@@ -316,14 +316,14 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
     }, [statementData]);
 
     const filteredStatementRows = useMemo(() => {
-        const f = appliedStatementFilters;
-        const from = f.dateFrom ? new Date(f.dateFrom) : null;
-        const to = f.dateTo ? new Date(f.dateTo) : null;
+        const f = statementFilters;
+        const fromStr = f.dateFrom ? String(f.dateFrom).slice(0, 10) : '';
+        const toStr = f.dateTo ? String(f.dateTo).slice(0, 10) : '';
 
         let rows = (statementData || []).filter(r => {
-            const dt = r.date ? new Date(r.date) : null;
-            const inFrom = !from || (dt && dt >= from);
-            const inTo = !to || (dt && dt <= to);
+            const rDateStr = r.date ? (typeof r.date === 'string' ? r.date.slice(0, 10) : new Date(r.date).toISOString().slice(0, 10)) : '';
+            const inFrom = !fromStr || (rDateStr && rDateStr >= fromStr);
+            const inTo = !toStr || (rDateStr && rDateStr <= toStr);
             const typeOk = f.type === 'all' || r.type === f.type;
             const modeOk = f.mode === 'all' || r.mode === f.mode;
             const q = (f.search || '').trim().toLowerCase();
@@ -350,7 +350,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
         });
 
         return rows;
-    }, [appliedStatementFilters, statementData, statementSort]);
+    }, [statementFilters, statementData, statementSort]);
 
     const paginatedStatementRows = useMemo(() => {
         const startIndex = (statementPage - 1) * statementItemsPerPage;
@@ -370,7 +370,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
     const exportStatementExcel = () => {
         try {
             if (!filteredStatementRows.length) {
-                Swal.fire('No data', 'No rows available for export.', 'info');
+                Swal.fire('No data', 'No rows available for export with current filters.', 'info');
                 return;
             }
             const wb = XLSX.utils.book_new();
@@ -383,7 +383,11 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                 ['Total Received', statementTotals.totalCredit],
                 ['Total Paid', statementTotals.totalDebit],
                 ['Closing Balance', statementTotals.closing],
-                ['Total Transactions', filteredStatementRows.length]
+                ['Total Filtered Transactions', filteredStatementRows.length],
+                ['Applied Date Range', statementFilters.dateFrom || statementFilters.dateTo ? `${statementFilters.dateFrom || 'Start'} to ${statementFilters.dateTo || 'End'}` : 'All Dates'],
+                ['Applied Type Filter', statementFilters.type !== 'all' ? statementFilters.type : 'All Types'],
+                ['Applied Mode Filter', statementFilters.mode !== 'all' ? statementFilters.mode : 'All Modes'],
+                ['Applied Search Keyword', statementFilters.search || 'None']
             ];
             const summarySheet = XLSX.utils.aoa_to_sheet([['Field', 'Value'], ...summaryData]);
             const columns = ['Date', 'ID', 'Description', 'From / To', 'Type', 'Mode', 'Reference', 'Debit', 'Credit', 'Balance'];
@@ -401,8 +405,8 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
             }));
             const tableSheet = XLSX.utils.json_to_sheet(tableRows, { header: columns });
             XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
-            XLSX.utils.book_append_sheet(wb, tableSheet, 'Statement');
-            XLSX.writeFile(wb, `${activeAccountStatement?.name || 'account'}-statement.xlsx`);
+            XLSX.utils.book_append_sheet(wb, tableSheet, 'Filtered Statement');
+            XLSX.writeFile(wb, `${activeAccountStatement?.name || 'account'}-statement-filtered.xlsx`);
         } catch (err) {
             Swal.fire('Export failed', err?.message || 'Unable to export Excel statement', 'error');
         }
@@ -411,7 +415,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
     const exportStatementPdf = () => {
         try {
             if (!filteredStatementRows.length) {
-                Swal.fire('No data', 'No rows available for export.', 'info');
+                Swal.fire('No data', 'No rows available for export with current filters.', 'info');
                 return;
             }
             const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
@@ -434,15 +438,28 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
             doc.setFontSize(16);
             doc.setTextColor(255, 255, 255);
             doc.setFont('helvetica', 'bold');
-            doc.text(`${sanitizePdfText(activeAccountStatement?.name || 'Account')} - Statement`, 80, 33);
+            doc.text(`${sanitizePdfText(activeAccountStatement?.name || 'Account')} - Statement`, 80, 32);
 
-            doc.setFontSize(8.5);
+            doc.setFontSize(8);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(148, 163, 184);
-            doc.text(`Company: ${sanitizePdfText(activeAccountStatement?.companyName || 'N/A')} | Code: ${sanitizePdfText(activeAccountStatement?.code || 'N/A')}`, 80, 48);
+            doc.text(`Company: ${sanitizePdfText(activeAccountStatement?.companyName || 'N/A')} | Code: ${sanitizePdfText(activeAccountStatement?.code || 'N/A')}`, 80, 46);
+
+            const filterSubtitle = [
+                statementFilters.dateFrom || statementFilters.dateTo ? `Date: ${statementFilters.dateFrom || 'Start'} to ${statementFilters.dateTo || 'End'}` : 'All Dates',
+                statementFilters.type !== 'all' ? `Type: ${statementFilters.type}` : null,
+                statementFilters.mode !== 'all' ? `Mode: ${statementFilters.mode}` : null,
+                statementFilters.search ? `Search: "${statementFilters.search}"` : null
+            ].filter(Boolean).join(' | ');
+
+            doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(165, 180, 252);
+            doc.text(`Applied Filters: ${sanitizePdfText(filterSubtitle)}`, 80, 59);
 
             // Generated date
             doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'normal');
             doc.setTextColor(148, 163, 184);
             doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - 30, 30, { align: 'right' });
             doc.setFillColor(92, 103, 242);
@@ -458,7 +475,7 @@ const AccountsPage = ({ activePage, setActivePage, userRole, mastersData, accoun
                 ['Total Received', `INR ${statementTotals.totalCredit.toLocaleString('en-IN')}`],
                 ['Total Paid', `INR ${statementTotals.totalDebit.toLocaleString('en-IN')}`],
                 ['Closing Balance', `INR ${statementTotals.closing.toLocaleString('en-IN')}`],
-                ['Transactions', String(filteredStatementRows.length)]
+                ['Filtered Txns', String(filteredStatementRows.length)]
             ];
             let cardY = 90;
             const cols = summaryCards.length;

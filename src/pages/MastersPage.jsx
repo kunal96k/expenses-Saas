@@ -52,8 +52,8 @@ const MastersPage = ({ activePage, userRole, mastersData, setMastersData, accoun
             });
 
             const response = await apiService.get(`${endpoint}?${params.toString()}`);
-            setLocalData(response.content || []);
-            setTotalElements(response.totalElements || 0);
+            setLocalData(response?.content || []);
+            setTotalElements(response?.page?.totalElements ?? response?.totalElements ?? 0);
         } catch (error) {
             console.error('Error fetching data:', error);
             // Swal.fire('Error', `Failed to load ${masterTitles[masterType]}. ${error.message}`, 'error');

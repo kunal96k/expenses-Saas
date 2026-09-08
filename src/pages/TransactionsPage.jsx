@@ -1,35 +1,54 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import Pagination from '../components/Pagination';
 import { apiService } from '../services/api';
 import './TransactionsPage.css';
+import '../views/DashboardView.css';
 
 const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, accounts: accountsFromProps }) => {
     // State for Tabs
     const [activeTab, setActiveTab] = useState('all');
 
+    // State for Search & Debounce
+    const [searchInput, setSearchInput] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
     // State for Filters
     const [filters, setFilters] = useState({
         dateFrom: '',
         dateTo: '',
-        company: 'all',
-        accounts: [], // IDs
-        type: 'all',
-        search: ''
+        companies: [], // IDs (empty = all)
+        accounts: [],  // IDs (empty = all)
+        type: 'all'
     });
+
+    // Sorting State
+    const [sortBy, setSortBy] = useState('date');
+    const [sortDirection, setSortDirection] = useState('desc');
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
     const [totalElements, setTotalElements] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [fetchError, setFetchError] = useState(null);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
     // Data State
     const [transactions, setTransactions] = useState([]);
+    const requestSeqRef = useRef(0);
 
-    // Dropdown State
+    // Dropdown States & Refs
+    const [isCompanyOpen, setIsCompanyOpen] = useState(false);
     const [isAccountsOpen, setIsAccountsOpen] = useState(false);
+    const [companySearch, setCompanySearch] = useState('');
+    const [accountSearch, setAccountSearch] = useState('');
+
+    const companyDropdownRef = useRef(null);
+    const accountDropdownRef = useRef(null);
 
     const allCompanies = useMemo(() => mastersData?.company || [], [mastersData]);
     const activeCompanies = useMemo(() => allCompanies.filter(c => c.status === 'Active'), [allCompanies]);
@@ -52,33 +71,235 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
     const activeModes = useMemo(() => allModes.filter(m => m.status === 'Active'), [allModes]);
     const tabToTxnType = { all: 'all', received: 'Received', paid: 'Paid', moved: 'Moved' };
 
+    // Close dropdowns on outside click
+    useEffect(() => {
+        const handleOutside = (e) => {
+            if (companyDropdownRef.current && !companyDropdownRef.current.contains(e.target)) {
+                setIsCompanyOpen(false);
+            }
+            if (accountDropdownRef.current && !accountDropdownRef.current.contains(e.target)) {
+                setIsAccountsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, []);
+
+    // Filtered accounts available based on selected companies
+    const filteredActiveAccounts = useMemo(() => {
+        if (filters.companies.length === 0 || filters.companies.length === activeCompanies.length) {
+            return activeAccounts;
+        }
+        return activeAccounts.filter(a => filters.companies.includes(Number(a.companyId)));
+    }, [activeAccounts, activeCompanies.length, filters.companies]);
+
+    // Clean up selected accounts when selected companies change
+    useEffect(() => {
+        if (filters.companies.length === 0 || filters.companies.length === activeCompanies.length) return;
+        const validIds = new Set(filteredActiveAccounts.map(a => Number(a.id)));
+        setFilters(prev => {
+            const filtered = prev.accounts.filter(id => validIds.has(Number(id)));
+            if (filtered.length !== prev.accounts.length) {
+                return { ...prev, accounts: filtered };
+            }
+            return prev;
+        });
+    }, [filters.companies, filteredActiveAccounts, activeCompanies.length]);
+
+    // Company Checkbox Helpers
+    const allCompanyIds = useMemo(() => activeCompanies.map(c => Number(c.id)), [activeCompanies]);
+    const isAllCompaniesChecked = useMemo(() => {
+        if (activeCompanies.length === 0) return false;
+        return filters.companies.length === 0 || allCompanyIds.every(id => filters.companies.includes(id));
+    }, [activeCompanies.length, allCompanyIds, filters.companies]);
+
+    const toggleSelectAllCompanies = () => {
+        if (isAllCompaniesChecked) {
+            setFilters(prev => ({ ...prev, companies: [-1], accounts: [] }));
+        } else {
+            setFilters(prev => ({ ...prev, companies: [], accounts: [] }));
+        }
+    };
+
+    const toggleCompany = (compId) => {
+        const idNum = Number(compId);
+        setFilters(prev => {
+            let current = prev.companies.length === 0 ? [...allCompanyIds] : (prev.companies.includes(-1) ? [] : [...prev.companies]);
+            if (current.includes(idNum)) {
+                current = current.filter(id => id !== idNum);
+            } else {
+                current.push(idNum);
+            }
+            if (current.length === 0) current = [-1];
+            else if (current.length === activeCompanies.length) current = [];
+            return { ...prev, companies: current };
+        });
+    };
+
+    const selectOnlyCompany = (compId, e) => {
+        e.stopPropagation();
+        setFilters(prev => ({ ...prev, companies: [Number(compId)] }));
+    };
+
+    // Account Checkbox Helpers
+    const availableAccountIds = useMemo(() => filteredActiveAccounts.map(a => Number(a.id)), [filteredActiveAccounts]);
+    const isAllAccountsChecked = useMemo(() => {
+        if (availableAccountIds.length === 0) return false;
+        return filters.accounts.length === 0 || availableAccountIds.every(id => filters.accounts.includes(id));
+    }, [availableAccountIds, filters.accounts]);
+
+    const toggleSelectAllAccounts = () => {
+        if (isAllAccountsChecked) {
+            setFilters(prev => ({ ...prev, accounts: [-1] }));
+        } else {
+            setFilters(prev => ({ ...prev, accounts: [] }));
+        }
+    };
+
+    const toggleAccount = (accId) => {
+        const idNum = Number(accId);
+        setFilters(prev => {
+            let current = prev.accounts.length === 0 ? [...availableAccountIds] : (prev.accounts.includes(-1) ? [] : [...prev.accounts]);
+            if (current.includes(idNum)) {
+                current = current.filter(id => id !== idNum);
+            } else {
+                current.push(idNum);
+            }
+            if (current.length === 0) current = [-1];
+            else if (current.length === availableAccountIds.length) current = [];
+            return { ...prev, accounts: current };
+        });
+    };
+
+    const selectOnlyAccount = (accId, e) => {
+        e.stopPropagation();
+        setFilters(prev => ({ ...prev, accounts: [Number(accId)] }));
+    };
+
+    // Trigger button display labels
+    const companyButtonSummary = useMemo(() => {
+        if (activeCompanies.length === 0) return 'Loading companies...';
+        if (isAllCompaniesChecked || filters.companies.length === 0) return 'All Companies';
+        if (filters.companies.includes(-1)) return '0 Companies Selected';
+        if (filters.companies.length === 1) {
+            const found = activeCompanies.find(c => Number(c.id) === filters.companies[0]);
+            return found ? found.name : '1 Company Selected';
+        }
+        return `${filters.companies.length} Companies Selected`;
+    }, [activeCompanies, isAllCompaniesChecked, filters.companies]);
+
+    const accountButtonSummary = useMemo(() => {
+        if (availableAccountIds.length === 0) return 'No Accounts Available';
+        if (isAllAccountsChecked || filters.accounts.length === 0) return 'All Accounts';
+        if (filters.accounts.includes(-1)) return '0 Accounts Selected';
+        if (filters.accounts.length === 1) {
+            const found = activeAccounts.find(a => Number(a.id) === filters.accounts[0]);
+            return found ? found.name : '1 Account Selected';
+        }
+        return `${filters.accounts.length} Accounts Selected`;
+    }, [availableAccountIds.length, isAllAccountsChecked, filters.accounts, activeAccounts]);
+
+    const displayedCompanies = useMemo(() => {
+        if (!companySearch.trim()) return activeCompanies;
+        return activeCompanies.filter(c => c.name?.toLowerCase().includes(companySearch.toLowerCase()));
+    }, [activeCompanies, companySearch]);
+
+    const displayedAccounts = useMemo(() => {
+        if (!accountSearch.trim()) return filteredActiveAccounts;
+        return filteredActiveAccounts.filter(a => 
+            a.name?.toLowerCase().includes(accountSearch.toLowerCase()) ||
+            a.companyName?.toLowerCase().includes(accountSearch.toLowerCase())
+        );
+    }, [filteredActiveAccounts, accountSearch]);
+
+    // 350ms Debounce on search input
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchInput.trim());
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    // Automatically reset to page 1 whenever filters, search, or active tab change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearch, filters.dateFrom, filters.dateTo, filters.companies, filters.accounts, filters.type, activeTab]);
+
+    const handleSort = (column) => {
+        if (sortBy === column) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(column);
+            setSortDirection('desc');
+        }
+        setCurrentPage(1);
+    };
+
     const fetchTransactions = async () => {
+        const seq = ++requestSeqRef.current;
         setIsLoading(true);
+        setFetchError(null);
         try {
             const params = new URLSearchParams({
-                page: currentPage - 1,
+                page: Math.max(0, currentPage - 1),
                 size: itemsPerPage,
-                search: filters.search,
+                search: debouncedSearch,
                 type: filters.type !== 'all' ? filters.type : tabToTxnType[activeTab],
-                sortBy: 'date',
-                direction: 'desc'
+                sortBy: sortBy,
+                direction: sortDirection
             });
 
             if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
             if (filters.dateTo) params.append('dateTo', filters.dateTo);
-            if (filters.company !== 'all') params.append('companyId', filters.company);
-            if (filters.accounts.length > 0) {
-                filters.accounts.forEach(id => params.append('accountIds', id));
+
+            const isAllCompanies = filters.companies.length === 0 || filters.companies.length === activeCompanies.length;
+            const isAllAccounts = filters.accounts.length === 0 || filters.accounts.length === filteredActiveAccounts.length;
+
+            if (!isAllAccounts) {
+                if (filters.accounts.includes(-1) || filters.accounts.length === 0) {
+                    params.append('accountIds', '-999999');
+                } else {
+                    filters.accounts.forEach(id => params.append('accountIds', id));
+                }
+            } else if (!isAllCompanies) {
+                if (filters.companies.includes(-1) || filters.companies.length === 0) {
+                    params.append('accountIds', '-999999');
+                } else if (filters.companies.length === 1) {
+                    params.append('companyId', String(filters.companies[0]));
+                } else {
+                    const compAccountIds = activeAccounts
+                        .filter(a => filters.companies.includes(Number(a.companyId)))
+                        .map(a => a.id);
+                    if (compAccountIds.length > 0) {
+                        compAccountIds.forEach(id => params.append('accountIds', id));
+                    } else {
+                        params.append('accountIds', '-999999');
+                    }
+                }
             }
 
             const response = await apiService.get(`/transactions?${params.toString()}`);
-            setTransactions(response.content || []);
-            setTotalElements(response.totalElements || 0);
+            if (seq === requestSeqRef.current) {
+                const content = response?.content || (Array.isArray(response) ? response : []);
+                const total = response?.page?.totalElements != null
+                    ? Number(response.page.totalElements)
+                    : (response?.totalElements != null
+                        ? Number(response.totalElements)
+                        : content.length);
+                setTransactions(content);
+                setTotalElements(total);
+            }
         } catch (error) {
-            console.error('Error fetching transactions:', error);
-            // Swal.fire('Error', 'Failed to load transactions.', 'error');
+            if (seq === requestSeqRef.current) {
+                console.error('Error fetching transactions:', error);
+                setFetchError(error?.message || 'Failed to load transactions. Please check connection.');
+                setTransactions([]);
+                setTotalElements(0);
+            }
         } finally {
-            setIsLoading(false);
+            if (seq === requestSeqRef.current) {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -94,32 +315,10 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
 
     useEffect(() => {
         fetchTransactions();
-    }, [currentPage, itemsPerPage, filters, activeTab]);
+    }, [currentPage, itemsPerPage, debouncedSearch, filters, activeTab, sortBy, sortDirection]);
 
     useEffect(() => {
         fetchAccountsFallback();
-    }, []);
-
-    const toggleAccount = (accId) => {
-        setFilters(prev => {
-            const current = [...prev.accounts];
-            if (current.includes(accId)) {
-                return { ...prev, accounts: current.filter(a => a !== accId) };
-            } else {
-                return { ...prev, accounts: [...current, accId] };
-            }
-        });
-    };
-
-    // Close dropdown on outside click
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (!e.target.closest('.custom-multi-select')) {
-                setIsAccountsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     // State for Modals
@@ -315,14 +514,324 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
     };
 
     const resetFilters = () => {
+        setSearchInput('');
+        setDebouncedSearch('');
         setFilters({
             dateFrom: '',
             dateTo: '',
-            company: 'all',
+            companies: [],
             accounts: [],
-            type: 'all',
-            search: ''
+            type: 'all'
         });
+        setActiveTab('all');
+        setSortBy('date');
+        setSortDirection('desc');
+        setCurrentPage(1);
+        setCompanySearch('');
+        setAccountSearch('');
+        setIsCompanyOpen(false);
+        setIsAccountsOpen(false);
+    };
+
+    const [isExporting, setIsExporting] = useState(false);
+
+    const buildFilterSummary = () => {
+        const dateRange = (filters.dateFrom || filters.dateTo)
+            ? `${filters.dateFrom || 'Start'} to ${filters.dateTo || 'End'}`
+            : 'All Dates';
+
+        const isAllCompanies = filters.companies.length === 0 || filters.companies.length === activeCompanies.length;
+        const compLabel = isAllCompanies
+            ? 'All Companies'
+            : (filters.companies.includes(-1)
+                ? 'None'
+                : (filters.companies.length === 1
+                    ? (activeCompanies.find(c => Number(c.id) === filters.companies[0])?.name || '1 Company')
+                    : `${filters.companies.length} Companies`));
+
+        const isAllAccounts = filters.accounts.length === 0 || filters.accounts.length === filteredActiveAccounts.length;
+        const accLabel = isAllAccounts
+            ? 'All Accounts'
+            : (filters.accounts.includes(-1)
+                ? 'None'
+                : (filters.accounts.length === 1
+                    ? (activeAccounts.find(a => Number(a.id) === filters.accounts[0])?.name || '1 Account')
+                    : `${filters.accounts.length} Accounts`));
+
+        const activeTxnType = filters.type !== 'all' ? filters.type : (tabToTxnType[activeTab] !== 'all' ? tabToTxnType[activeTab] : 'All Types');
+
+        return {
+            dateRange,
+            compLabel,
+            accLabel,
+            activeTxnType,
+            searchQuery: debouncedSearch || 'None'
+        };
+    };
+
+    const fetchAllFilteredTransactions = async () => {
+        const pageSize = 500;
+        let allRows = [];
+        let total = 0;
+
+        const buildParams = (p) => {
+            const params = new URLSearchParams({
+                page: p,
+                size: pageSize,
+                search: debouncedSearch,
+                type: filters.type !== 'all' ? filters.type : tabToTxnType[activeTab],
+                sortBy: sortBy,
+                direction: sortDirection
+            });
+
+            if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+            if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+            const isAllCompanies = filters.companies.length === 0 || filters.companies.length === activeCompanies.length;
+            const isAllAccounts = filters.accounts.length === 0 || filters.accounts.length === filteredActiveAccounts.length;
+
+            if (!isAllAccounts) {
+                if (filters.accounts.includes(-1) || filters.accounts.length === 0) {
+                    params.append('accountIds', '-999999');
+                } else {
+                    filters.accounts.forEach(id => params.append('accountIds', id));
+                }
+            } else if (!isAllCompanies) {
+                if (filters.companies.includes(-1) || filters.companies.length === 0) {
+                    params.append('accountIds', '-999999');
+                } else if (filters.companies.length === 1) {
+                    params.append('companyId', String(filters.companies[0]));
+                } else {
+                    const compAccountIds = activeAccounts
+                        .filter(a => filters.companies.includes(Number(a.companyId)))
+                        .map(a => a.id);
+                    if (compAccountIds.length > 0) {
+                        compAccountIds.forEach(id => params.append('accountIds', id));
+                    } else {
+                        params.append('accountIds', '-999999');
+                    }
+                }
+            }
+            return params;
+        };
+
+        const firstRes = await apiService.get(`/transactions?${buildParams(0).toString()}`);
+        const firstContent = firstRes?.content || (Array.isArray(firstRes) ? firstRes : []);
+        total = Number(firstRes?.page?.totalElements ?? firstRes?.totalElements ?? firstContent.length);
+        const totalPages = Math.max(Number(firstRes?.page?.totalPages ?? firstRes?.totalPages ?? 0), total > 0 ? Math.ceil(total / pageSize) : 0);
+        allRows.push(...firstContent);
+
+        if (totalPages > 1) {
+            for (let p = 1; p < totalPages; p++) {
+                const nextRes = await apiService.get(`/transactions?${buildParams(p).toString()}`);
+                const nextContent = nextRes?.content || (Array.isArray(nextRes) ? nextRes : []);
+                allRows.push(...nextContent);
+            }
+        }
+        return { rows: allRows, total };
+    };
+
+    const exportTransactionsExcel = async () => {
+        setIsExporting(true);
+        try {
+            const { rows, total } = await fetchAllFilteredTransactions();
+            if (!rows.length) {
+                Swal.fire('No data', 'No transactions found matching the applied filters.', 'info');
+                return;
+            }
+
+            const filterMeta = buildFilterSummary();
+            const totalReceived = rows.filter(r => r.type === 'Received').reduce((s, r) => s + Number(r.amount || 0), 0);
+            const totalPaid = rows.filter(r => r.type === 'Paid').reduce((s, r) => s + Number(r.amount || 0), 0);
+            const totalMoved = rows.filter(r => r.type === 'Moved').reduce((s, r) => s + Number(r.amount || 0), 0);
+
+            const summaryData = [
+                ['Metric / Filter', 'Value'],
+                ['Total Filtered Records', total],
+                ['Total Received (In)', totalReceived],
+                ['Total Paid (Out)', totalPaid],
+                ['Total Moved (Transfer)', totalMoved],
+                ['Net Cash Flow (In - Out)', totalReceived - totalPaid],
+                ['Applied Date Range', filterMeta.dateRange],
+                ['Applied Company Filter', filterMeta.compLabel],
+                ['Applied Account Filter', filterMeta.accLabel],
+                ['Applied Type Filter', filterMeta.activeTxnType],
+                ['Applied Search Query', filterMeta.searchQuery]
+            ];
+
+            const columns = ['Sr No.', 'Date', 'ID', 'Type', 'Description', 'From Source', 'To Destination', 'Category', 'Mode', 'Reference', 'Amount'];
+            const tableRows = rows.map((r, idx) => ({
+                'Sr No.': idx + 1,
+                Date: r.date || '-',
+                ID: `TXT${String(r.id).padStart(6, '0')}`,
+                Type: r.type || '-',
+                Description: r.description || '-',
+                'From Source': r.fromAccountName ? `${r.fromAccountName} (${r.fromCompanyName || ''})` : (r.fromExternal || '-'),
+                'To Destination': r.toAccountName ? `${r.toAccountName} (${r.toCompanyName || ''})` : (r.toExternal || '-'),
+                Category: r.categoryName || '-',
+                Mode: r.paymentModeName || '-',
+                Reference: r.reference || '-',
+                Amount: Number(r.amount || 0)
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+            const tableSheet = XLSX.utils.json_to_sheet(tableRows, { header: columns });
+            XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary & Filters');
+            XLSX.utils.book_append_sheet(wb, tableSheet, 'Filtered Transactions');
+
+            const dateStr = (filters.dateFrom || filters.dateTo) ? `${filters.dateFrom || 'start'}-to-${filters.dateTo || 'end'}` : 'all-dates';
+            XLSX.writeFile(wb, `transactions-${dateStr}-filtered.xlsx`);
+        } catch (err) {
+            console.error('Error exporting transactions Excel:', err);
+            Swal.fire('Export Error', err?.message || 'Failed to export Excel', 'error');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const exportTransactionsPdf = async () => {
+        setIsExporting(true);
+        try {
+            const { rows, total } = await fetchAllFilteredTransactions();
+            if (!rows.length) {
+                Swal.fire('No data', 'No transactions found matching the applied filters.', 'info');
+                return;
+            }
+
+            const filterMeta = buildFilterSummary();
+            const totalReceived = rows.filter(r => r.type === 'Received').reduce((s, r) => s + Number(r.amount || 0), 0);
+            const totalPaid = rows.filter(r => r.type === 'Paid').reduce((s, r) => s + Number(r.amount || 0), 0);
+
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+
+            // Header band
+            doc.setFillColor(15, 23, 42);
+            doc.rect(0, 0, pageW, 72, 'F');
+
+            // Logo block
+            doc.setFillColor(92, 103, 242);
+            doc.roundedRect(30, 16, 38, 38, 4, 4, 'F');
+            doc.setFontSize(18);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('T', 42, 41);
+
+            // Title
+            doc.setFontSize(16);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Financial Transactions - Filtered Audit', 80, 32);
+
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(148, 163, 184);
+            doc.text(`Period: ${filterMeta.dateRange} | Scope: ${filterMeta.compLabel} / ${filterMeta.accLabel}`, 80, 46);
+
+            const filterSubtitle = `Type: ${filterMeta.activeTxnType} | Search: "${filterMeta.searchQuery}"`;
+            doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(165, 180, 252);
+            doc.text(`Applied Filters: ${filterSubtitle}`, 80, 59);
+
+            // Generated timestamp
+            doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(148, 163, 184);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - 30, 30, { align: 'right' });
+            doc.setFillColor(92, 103, 242);
+            doc.roundedRect(pageW - 110, 40, 80, 16, 3, 3, 'F');
+            doc.setFontSize(7);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('FILTERED', pageW - 70, 51, { align: 'center' });
+
+            // Summary cards
+            const summaryCards = [
+                ['Total Filtered', String(total)],
+                ['Total Received', `INR ${totalReceived.toLocaleString('en-IN')}`],
+                ['Total Paid', `INR ${totalPaid.toLocaleString('en-IN')}`],
+                ['Net Flow', `INR ${(totalReceived - totalPaid).toLocaleString('en-IN')}`]
+            ];
+
+            let cardY = 90;
+            const cols = summaryCards.length;
+            const cardW = Math.min(150, (pageW - 60) / cols);
+            const totalCardW = cols * cardW + (cols - 1) * 10;
+            let cardX = (pageW - totalCardW) / 2;
+
+            summaryCards.forEach(([label, value]) => {
+                doc.setFillColor(248, 250, 252);
+                doc.roundedRect(cardX, cardY, cardW, 44, 4, 4, 'F');
+                doc.setDrawColor(226, 232, 240);
+                doc.setLineWidth(0.5);
+                doc.roundedRect(cardX, cardY, cardW, 44, 4, 4, 'S');
+
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 116, 139);
+                doc.text(label.toUpperCase(), cardX + cardW / 2, cardY + 13, { align: 'center' });
+
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(15, 23, 42);
+                doc.text(value, cardX + cardW / 2, cardY + 30, { align: 'center' });
+
+                cardX += cardW + 10;
+            });
+
+            // Table
+            const columns = ['Sr No.', 'Date', 'ID', 'Type', 'Description', 'From Source', 'To Destination', 'Category', 'Mode', 'Reference', 'Amount'];
+            const tableRows = rows.map((r, idx) => [
+                idx + 1,
+                r.date || '-',
+                `TXT${String(r.id).padStart(6, '0')}`,
+                r.type || '-',
+                r.description ? (r.description.length > 25 ? r.description.slice(0, 25) + '...' : r.description) : '-',
+                r.fromAccountName ? `${r.fromAccountName}` : (r.fromExternal || '-'),
+                r.toAccountName ? `${r.toAccountName}` : (r.toExternal || '-'),
+                r.categoryName || '-',
+                r.paymentModeName || '-',
+                r.reference || '-',
+                Number(r.amount || 0).toLocaleString('en-IN')
+            ]);
+
+            doc.autoTable({
+                head: [columns],
+                body: tableRows,
+                startY: cardY + 60,
+                theme: 'plain',
+                headStyles: {
+                    fillColor: [15, 23, 42],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    fontSize: 7.5,
+                    cellPadding: { top: 7, bottom: 7, left: 5, right: 5 }
+                },
+                bodyStyles: {
+                    fontSize: 7.5,
+                    cellPadding: { top: 5, bottom: 5, left: 5, right: 5 },
+                    lineColor: [241, 245, 249],
+                    lineWidth: { bottom: 0.5 },
+                    textColor: [51, 65, 85]
+                },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                columnStyles: {
+                    10: { halign: 'right' }
+                },
+                margin: { left: 20, right: 20, top: 72, bottom: 30 }
+            });
+
+            const dateStr = (filters.dateFrom || filters.dateTo) ? `${filters.dateFrom || 'start'}-to-${filters.dateTo || 'end'}` : 'all-dates';
+            doc.save(`transactions-${dateStr}-filtered.pdf`);
+        } catch (err) {
+            console.error('Error exporting transactions PDF:', err);
+            Swal.fire('Export Error', err?.message || 'Failed to export PDF', 'error');
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     return (
@@ -333,19 +842,41 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                     <h4 className="page-title mb-1" style={{ fontSize: '1.5rem' }}>Financial Transactions</h4>
                     <p className="text-muted small mb-0">Track and manage money movement across your business</p>
                 </div>
-                {userRole === 'Super Admin' && (
-                    <div className="action-buttons-group">
-                        <button className="btn-transaction btn-income" onClick={() => openModal('addReceived')}>
-                            <i className="bi bi-plus-circle"></i> Add Received
+                <div className="d-flex flex-wrap align-items-center gap-2">
+                    <div className="d-flex gap-2">
+                        <button 
+                            className="btn btn-sm btn-light border px-3" 
+                            onClick={exportTransactionsPdf} 
+                            disabled={isExporting || totalElements === 0} 
+                            title="Export Filtered Transactions to PDF"
+                        >
+                            {isExporting ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-file-earmark-pdf text-danger me-1"></i>}
+                            Export PDF
                         </button>
-                        <button className="btn-transaction btn-expense" onClick={() => openModal('addPaid')}>
-                            <i className="bi bi-dash-circle"></i> Add Paid
-                        </button>
-                        <button className="btn-transaction btn-transfer" onClick={() => openModal('transferMoney')}>
-                            <i className="bi bi-arrow-left-right"></i> Transfer Money
+                        <button 
+                            className="btn btn-sm btn-light border px-3" 
+                            onClick={exportTransactionsExcel} 
+                            disabled={isExporting || totalElements === 0} 
+                            title="Export Filtered Transactions to Excel"
+                        >
+                            {isExporting ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-file-earmark-excel text-success me-1"></i>}
+                            Export Excel
                         </button>
                     </div>
-                )}
+                    {userRole === 'Super Admin' && (
+                        <div className="action-buttons-group">
+                            <button className="btn-transaction btn-income" onClick={() => openModal('addReceived')}>
+                                <i className="bi bi-plus-circle"></i> Add Received
+                            </button>
+                            <button className="btn-transaction btn-expense" onClick={() => openModal('addPaid')}>
+                                <i className="bi bi-dash-circle"></i> Add Paid
+                            </button>
+                            <button className="btn-transaction btn-transfer" onClick={() => openModal('transferMoney')}>
+                                <i className="bi bi-arrow-left-right"></i> Transfer Money
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Filter Bar */}
@@ -368,47 +899,232 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                             />
                         </div>
                     </div>
-                    <div className="filter-item">
+
+                    {/* Company Multi-Select */}
+                    <div className="filter-item" ref={companyDropdownRef}>
                         <label className="filter-label">Company</label>
-                        <select
-                            className="filter-input"
-                            value={filters.company}
-                            onChange={(e) => setFilters({ ...filters, company: e.target.value })}
-                        >
-                            <option value="all">All Companies</option>
-                            {activeCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                    </div>
-                    <div className="filter-item">
-                        <label className="filter-label">Accounts</label>
-                        <div className="custom-multi-select position-relative">
+                        <div className="dash-multi-select">
                             <div
-                                className="filter-input d-flex justify-content-between align-items-center"
-                                style={{ height: '42px', cursor: 'pointer' }}
-                                onClick={() => setIsAccountsOpen(!isAccountsOpen)}
+                                className={`dash-select-trigger ${isCompanyOpen ? 'active' : ''}`}
+                                onClick={() => {
+                                    setIsCompanyOpen(!isCompanyOpen);
+                                    setIsAccountsOpen(false);
+                                }}
+                                title={companyButtonSummary}
                             >
-                                <span className={filters.accounts.length === 0 ? "text-muted" : "text-dark"}>
-                                    {filters.accounts.length === 0 ? 'All Accounts' : `${filters.accounts.length} Selected`}
-                                </span>
-                                <i className={`bi bi-chevron-${isAccountsOpen ? 'up' : 'down'} text-muted`}></i>
+                                <div className="dash-select-summary">
+                                    <span className="text-truncate">{companyButtonSummary}</span>
+                                    {filters.companies.length > 1 && !isAllCompaniesChecked && !filters.companies.includes(-1) && (
+                                        <span className="dash-select-badge">{filters.companies.length}</span>
+                                    )}
+                                </div>
+                                <div className="dash-select-icons">
+                                    <i className={`bi bi-chevron-${isCompanyOpen ? 'up' : 'down'}`}></i>
+                                </div>
+                            </div>
+
+                            {isCompanyOpen && (
+                                <div className="dash-select-menu">
+                                    {activeCompanies.length > 5 && (
+                                        <div className="dash-select-search-box">
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm"
+                                                placeholder="Search company..."
+                                                value={companySearch}
+                                                onChange={(e) => setCompanySearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div
+                                        className="dash-select-header-option"
+                                        onClick={toggleSelectAllCompanies}
+                                    >
+                                        <div className="d-flex align-items-center">
+                                            <input
+                                                type="checkbox"
+                                                className="form-check-input"
+                                                checked={isAllCompaniesChecked}
+                                                onChange={toggleSelectAllCompanies}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <span>Select All Companies</span>
+                                        </div>
+                                        <span className="badge bg-light text-muted fw-normal">{activeCompanies.length}</span>
+                                    </div>
+
+                                    <div className="dash-select-options-list">
+                                        {displayedCompanies.map(c => {
+                                            const isChecked = isAllCompaniesChecked || filters.companies.includes(Number(c.id));
+                                            return (
+                                                <div
+                                                    key={c.id}
+                                                    className={`dash-select-option ${isChecked ? 'selected' : ''}`}
+                                                    onClick={() => toggleCompany(c.id)}
+                                                >
+                                                    <div className="d-flex align-items-center overflow-hidden flex-grow-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="form-check-input"
+                                                            checked={isChecked}
+                                                            onChange={() => toggleCompany(c.id)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                        <div className="dash-option-label">
+                                                            <span className="dash-option-title text-truncate">{c.name}</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="dash-only-btn ms-2"
+                                                        title={`Select only ${c.name}`}
+                                                        onClick={(e) => selectOnlyCompany(c.id, e)}
+                                                    >
+                                                        Only
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {displayedCompanies.length === 0 && (
+                                            <div className="text-center py-3 text-muted small">No companies found</div>
+                                        )}
+                                    </div>
+
+                                    <div className="dash-select-footer">
+                                        <span>
+                                            {isAllCompaniesChecked
+                                                ? activeCompanies.length
+                                                : (filters.companies.includes(-1) ? 0 : filters.companies.length)} of {activeCompanies.length} selected
+                                        </span>
+                                        {!isAllCompaniesChecked && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setFilters(prev => ({ ...prev, companies: [] }))}
+                                            >
+                                                Select All
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Accounts Multi-Select */}
+                    <div className="filter-item" ref={accountDropdownRef}>
+                        <label className="filter-label">Accounts</label>
+                        <div className="dash-multi-select">
+                            <div
+                                className={`dash-select-trigger ${isAccountsOpen ? 'active' : ''}`}
+                                onClick={() => {
+                                    setIsAccountsOpen(!isAccountsOpen);
+                                    setIsCompanyOpen(false);
+                                }}
+                                title={accountButtonSummary}
+                            >
+                                <div className="dash-select-summary">
+                                    <span className="text-truncate">{accountButtonSummary}</span>
+                                    {filters.accounts.length > 1 && !isAllAccountsChecked && !filters.accounts.includes(-1) && (
+                                        <span className="dash-select-badge">{filters.accounts.length}</span>
+                                    )}
+                                </div>
+                                <div className="dash-select-icons">
+                                    <i className={`bi bi-chevron-${isAccountsOpen ? 'up' : 'down'}`}></i>
+                                </div>
                             </div>
 
                             {isAccountsOpen && (
-                                <div className="position-absolute w-100 bg-white border border-light rounded-3 shadow-lg mt-1 z-3 dropdown-container" style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                                    <div className="dropdown-option border-bottom" onClick={() => setFilters({ ...filters, accounts: [] })}>
-                                        <div className="form-check d-flex align-items-center m-0 w-100 custom-check">
-                                            <input className="form-check-input me-2 shadow-none border-secondary" type="checkbox" checked={filters.accounts.length === 0} readOnly style={{ cursor: 'pointer' }} />
-                                            <label className="form-check-label w-100 text-dark" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>All Accounts</label>
+                                <div className="dash-select-menu">
+                                    {filteredActiveAccounts.length > 5 && (
+                                        <div className="dash-select-search-box">
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm"
+                                                placeholder="Search account..."
+                                                value={accountSearch}
+                                                onChange={(e) => setAccountSearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
                                         </div>
+                                    )}
+
+                                    <div
+                                        className="dash-select-header-option"
+                                        onClick={toggleSelectAllAccounts}
+                                    >
+                                        <div className="d-flex align-items-center">
+                                            <input
+                                                type="checkbox"
+                                                className="form-check-input"
+                                                checked={isAllAccountsChecked}
+                                                onChange={toggleSelectAllAccounts}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <span>Select All Accounts</span>
+                                        </div>
+                                        <span className="badge bg-light text-muted fw-normal">{filteredActiveAccounts.length}</span>
                                     </div>
-                                    {activeAccounts.map(acc => (
-                                        <div key={acc.id} className="dropdown-option" onClick={() => toggleAccount(acc.id)}>
-                                            <div className="form-check d-flex align-items-center m-0 w-100 custom-check">
-                                                <input className="form-check-input me-2 shadow-none border-secondary" type="checkbox" checked={filters.accounts.includes(acc.id)} readOnly style={{ cursor: 'pointer' }} />
-                                                <label className="form-check-label w-100 text-dark" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>{acc.name} ({acc.companyName})</label>
-                                            </div>
-                                        </div>
-                                    ))}
+
+                                    <div className="dash-select-options-list">
+                                        {displayedAccounts.map(acc => {
+                                            const isChecked = isAllAccountsChecked || filters.accounts.includes(Number(acc.id));
+                                            return (
+                                                <div
+                                                    key={acc.id}
+                                                    className={`dash-select-option ${isChecked ? 'selected' : ''}`}
+                                                    onClick={() => toggleAccount(acc.id)}
+                                                >
+                                                    <div className="d-flex align-items-center overflow-hidden flex-grow-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="form-check-input"
+                                                            checked={isChecked}
+                                                            onChange={() => toggleAccount(acc.id)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                        <div className="dash-option-label">
+                                                            <span className="dash-option-title text-truncate">
+                                                                <i className={`bi ${acc.type === 'Bank' ? 'bi-bank text-primary' : 'bi-wallet text-warning'} me-1`}></i>
+                                                                {acc.name}
+                                                            </span>
+                                                            {acc.companyName && (
+                                                                <span className="dash-option-subtitle text-truncate">{acc.companyName}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="dash-only-btn ms-2"
+                                                        title={`Select only ${acc.name}`}
+                                                        onClick={(e) => selectOnlyAccount(acc.id, e)}
+                                                    >
+                                                        Only
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {displayedAccounts.length === 0 && (
+                                            <div className="text-center py-3 text-muted small">No accounts found</div>
+                                        )}
+                                    </div>
+
+                                    <div className="dash-select-footer">
+                                        <span>
+                                            {isAllAccountsChecked
+                                                ? filteredActiveAccounts.length
+                                                : (filters.accounts.includes(-1) ? 0 : filters.accounts.length)} of {filteredActiveAccounts.length} selected
+                                        </span>
+                                        {!isAllAccountsChecked && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setFilters(prev => ({ ...prev, accounts: [] }))}
+                                            >
+                                                Select All
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -428,13 +1144,26 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                     </div>
                     <div className="filter-item search">
                         <label className="filter-label">Search</label>
-                        <input
-                            type="text"
-                            className="filter-input"
-                            placeholder="Desc, Ref, or Account..."
-                            value={filters.search}
-                            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                        />
+                        <div className="position-relative">
+                            <input
+                                type="text"
+                                className="filter-input pe-4"
+                                placeholder="Desc, Ref, Account, Amount, TXT..."
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                            />
+                            {searchInput && (
+                                <button
+                                    type="button"
+                                    className="btn btn-sm text-muted position-absolute end-0 top-50 translate-middle-y border-0 bg-transparent p-0 me-2"
+                                    onClick={() => setSearchInput('')}
+                                    title="Clear search"
+                                    style={{ cursor: 'pointer', lineHeight: 1 }}
+                                >
+                                    <i className="bi bi-x-circle-fill"></i>
+                                </button>
+                            )}
+                        </div>
                     </div>
                     <div className="filter-item reset">
                         <button className="btn btn-outline-secondary rounded-pill px-3" onClick={resetFilters} title="Reset Filters">
@@ -452,6 +1181,20 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                 <div className={`tab-item ${activeTab === 'moved' ? 'active' : ''}`} onClick={() => setActiveTab('moved')}>Moved</div>
             </div>
 
+            {fetchError && (
+                <div className="alert alert-danger d-flex align-items-center justify-content-between p-3 rounded-3 my-3" role="alert">
+                    <div className="d-flex align-items-center gap-2">
+                        <i className="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+                        <div>
+                            <strong>Error loading transactions:</strong> {fetchError}
+                        </div>
+                    </div>
+                    <button className="btn btn-sm btn-outline-danger" onClick={fetchTransactions}>
+                        <i className="bi bi-arrow-clockwise me-1"></i> Retry
+                    </button>
+                </div>
+            )}
+
             {isLoading ? (
                 <div className="text-center py-5">
                     <div className="spinner-border text-primary" role="status">
@@ -463,7 +1206,7 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                     {/* Transactions List — Card Format for Mobile */}
                     <div className="d-block d-md-none">
                         <div className="transaction-cards-wrap">
-                            {transactions.map(txn => {
+                            {transactions.map((txn, index) => {
                                 const isIncome = txn.type === 'Received';
                                 const isExpense = txn.type === 'Paid';
 
@@ -472,7 +1215,10 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                                         <div className="d-flex justify-content-between align-items-start mb-2">
                                             <div className="pe-2">
                                                 <div className="txn-desc fw-bold" title={txn.description}>{txn.description?.length > 15 ? txn.description.substring(0, 15) + '...' : (txn.description || 'No Description')}</div>
-                                                <div className="text-muted small-text">{txn.date} • <span className="opacity-75">TXT{String(txn.id).padStart(6, '0')}</span></div>
+                                                <div className="text-muted small-text">
+                                                    <span className="badge bg-light text-muted border me-1">#{(currentPage - 1) * itemsPerPage + index + 1}</span>
+                                                    {txn.date} • <span className="opacity-75">TXT{String(txn.id).padStart(6, '0')}</span>
+                                                </div>
                                             </div>
                                             <div className={`txn-amount text-end fw-bold ${isIncome ? 'text-success' : isExpense ? 'text-danger' : 'text-primary'}`}>
                                                 {isExpense ? '-' : '+'}₹{(txn.amount || 0).toLocaleString('en-IN')}
@@ -516,23 +1262,31 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                     </div>
 
                     {/* Table Section — Desktop Only */}
-                    <div className="transaction-table-container d-none d-md-block mb-5">
+                    <div className="transaction-table-container d-none d-md-block mb-3">
                         <table className="transaction-table">
                             <thead>
                                 <tr>
-                                    <th>Date</th>
-                                    <th>Type</th>
+                                    <th style={{ width: '65px' }}>Sr No.</th>
+                                    <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }} className="user-select-none" title="Click to sort by date">
+                                        Date {sortBy === 'date' && <i className={`bi bi-arrow-${sortDirection === 'asc' ? 'up' : 'down'} text-primary ms-1`}></i>}
+                                    </th>
+                                    <th onClick={() => handleSort('type')} style={{ cursor: 'pointer' }} className="user-select-none" title="Click to sort by type">
+                                        Type {sortBy === 'type' && <i className={`bi bi-arrow-${sortDirection === 'asc' ? 'up' : 'down'} text-primary ms-1`}></i>}
+                                    </th>
                                     <th>From Source</th>
                                     <th>To Destination</th>
-                                    <th>Amount</th>
+                                    <th onClick={() => handleSort('amount')} style={{ cursor: 'pointer' }} className="user-select-none" title="Click to sort by amount">
+                                        Amount {sortBy === 'amount' && <i className={`bi bi-arrow-${sortDirection === 'asc' ? 'up' : 'down'} text-primary ms-1`}></i>}
+                                    </th>
                                     <th>Mode</th>
                                     <th>Reference</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {transactions.map(txn => (
+                                {transactions.map((txn, index) => (
                                     <tr key={txn.id} className="transaction-row">
+                                        <td data-label="Sr No." className="text-muted fw-semibold">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                                         <td data-label="Date">{txn.date}</td>
                                         <td data-label="Type">
                                             <span className={`badge-type badge-${txn.type === 'Received' ? 'income' : txn.type === 'Paid' ? 'expense' : 'transfer'}`}>
@@ -565,10 +1319,10 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                                         <td data-label="Actions">
                                             <div className="d-flex gap-2">
                                                 {userRole === 'Super Admin' && (
-                                                    <>
-                                                        <button className="btn btn-sm btn-light border" title="Edit" onClick={() => openModal('editTransaction', txn)}><i className="bi bi-pencil"></i></button>
-                                                        <button className="btn btn-sm btn-light border text-danger" title="Delete" onClick={() => handleDelete(txn.id)}><i className="bi bi-trash"></i></button>
-                                                    </>
+                                                     <>
+                                                         <button className="btn btn-sm btn-light border" title="Edit" onClick={() => openModal('editTransaction', txn)}><i className="bi bi-pencil"></i></button>
+                                                         <button className="btn btn-sm btn-light border text-danger" title="Delete" onClick={() => handleDelete(txn.id)}><i className="bi bi-trash"></i></button>
+                                                     </>
                                                 )}
                                                 <button className="btn btn-sm btn-light border text-primary" title="View" onClick={() => openModal('viewTransaction', txn)}><i className="bi bi-eye"></i></button>
                                             </div>
@@ -577,7 +1331,7 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                                 ))}
                                 {transactions.length === 0 && (
                                     <tr>
-                                        <td colSpan="8" className="text-center py-4 text-muted">No transactions found</td>
+                                        <td colSpan="9" className="text-center py-4 text-muted">No transactions found</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -587,7 +1341,7 @@ const TransactionsPage = ({ activePage, setActivePage, userRole, mastersData, ac
                     {/* Pagination Component */}
                     <div className="mb-5">
                         <Pagination
-                            totalItems={totalElements}
+                            totalItems={totalElements || transactions.length}
                             itemsPerPage={itemsPerPage}
                             currentPage={currentPage}
                             onPageChange={setCurrentPage}

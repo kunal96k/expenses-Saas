@@ -129,7 +129,10 @@ const Sidebar = ({ activePage, onPageChange, isCollapsed, isShown, setIsSidebarS
 
           <div className="brand-info">
             <span className="brand-text">TechnoKraft</span>
-            <span className="app-subtitle">Training &amp; Solution</span>
+            <span className="app-subtitle">
+              Training &amp; Solution
+              <span className="sidebar-version-pill">v3.1</span>
+            </span>
           </div>
         </div>
       </div>

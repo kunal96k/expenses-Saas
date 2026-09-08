@@ -95,6 +95,14 @@ function App() {
       system: {
         enableNotifications: true,
         enableDevTools: true
+      },
+      reports: {
+        defaultExportFormat: 'Excel',
+        autoEmailReports: false,
+        recipientTarget: 'SUPERADMIN_ONLY', // 'SUPERADMIN_ONLY', 'BOTH', 'VIEWER_ONLY'
+        scheduleFrequency: 'Monthly',
+        scheduledDay: '1',
+        scheduledTime: '10:00'
       }
     },
     preferences: {
@@ -104,13 +112,6 @@ function App() {
       },
       dashboard: {
         showCharts: true
-      },
-      reports: {
-        defaultExportFormat: 'PDF',
-        autoEmailReports: true,
-        scheduleFrequency: 'Monthly',
-        scheduledDay: '1',
-        scheduledTime: '10:00'
       }
     }
   };
@@ -118,7 +119,24 @@ function App() {
   const [systemSettings, setSystemSettings] = useState(() => {
     try {
       const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : defaultSystemSettings;
+      if (!raw) return defaultSystemSettings;
+      const parsed = JSON.parse(raw);
+      // Migrate reports from preferences to general if needed
+      if (!parsed.general?.reports) {
+        parsed.general = parsed.general || {};
+        parsed.general.reports = {
+          ...defaultSystemSettings.general.reports,
+          ...(parsed.preferences?.reports || {})
+        };
+      } else {
+        if (!parsed.general.reports.recipientTarget) {
+          parsed.general.reports.recipientTarget = 'SUPERADMIN_ONLY';
+        }
+        if (!parsed.general.reports.defaultExportFormat) {
+          parsed.general.reports.defaultExportFormat = 'Excel';
+        }
+      }
+      return parsed;
     } catch {
       return defaultSystemSettings;
     }
@@ -128,9 +146,12 @@ function App() {
   const persistSettings = async (nextSettings) => {
     try {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
-      if (nextSettings.preferences) {
-        await apiService.patch('/auth/me/preferences', nextSettings.preferences);
-      }
+      const payload = {
+        ...(nextSettings.preferences || {}),
+        general: nextSettings.general || {},
+        reports: nextSettings.general?.reports || {}
+      };
+      await apiService.patch('/auth/me/preferences', payload);
     } catch (err) {
       console.error("Failed to save preferences to backend", err);
     }
@@ -217,9 +238,18 @@ function App() {
           localStorage.setItem('actingUserId', String(me.employeeId));
         }
         if (me?.preferences) {
+          const loaded = me.preferences;
+          const loadedReports = loaded.general?.reports || loaded.reports || {};
           setSystemSettings(prev => ({
             ...prev,
-            preferences: { ...prev.preferences, ...me.preferences }
+            general: {
+              ...(prev.general || defaultSystemSettings.general),
+              reports: {
+                ...(prev.general?.reports || defaultSystemSettings.general.reports),
+                ...loadedReports
+              }
+            },
+            preferences: { ...prev.preferences, ...loaded }
           }));
         }
         setIsAuthenticated(true);
@@ -243,9 +273,18 @@ function App() {
         localStorage.setItem('actingUserId', String(me.employeeId));
       }
       if (me?.preferences) {
+        const loaded = me.preferences;
+        const loadedReports = loaded.general?.reports || loaded.reports || {};
         setSystemSettings(prev => ({
           ...prev,
-          preferences: { ...prev.preferences, ...me.preferences }
+          general: {
+            ...(prev.general || defaultSystemSettings.general),
+            reports: {
+              ...(prev.general?.reports || defaultSystemSettings.general.reports),
+              ...loadedReports
+            }
+          },
+          preferences: { ...prev.preferences, ...loaded }
         }));
       }
       setIsAuthenticated(true);
@@ -435,6 +474,7 @@ function App() {
               <SettingsPage 
                 activePage={activePage} 
                 userRole={userRole} 
+                userProfile={userProfile}
                 systemSettings={systemSettings}
                 setSystemSettings={setSystemSettings}
                 defaultSystemSettings={defaultSystemSettings}

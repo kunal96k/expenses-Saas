@@ -9,6 +9,8 @@ const Footer = () => {
       <a href="https://www.technokraftservices.com/" target="_blank" rel="noopener noreferrer">
         TechnoKraft Services LLP
       </a>
+      <span className="app-footer-sep">|</span>
+      <span className="app-footer-version">v3.1</span>
     </footer>
   );
 };

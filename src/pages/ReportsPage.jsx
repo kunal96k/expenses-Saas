@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import './ReportsPage.css';
+import '../views/DashboardView.css';
 import Pagination from '../components/Pagination';
 import Swal from 'sweetalert2';
 import { apiService } from '../services/api';
@@ -62,6 +63,16 @@ const ReportsPage = ({ activePage, userRole }) => {
         search: ''
     });
 
+    const [appliedFilters, setAppliedFilters] = useState({
+        dateFrom: defaultRange.fromIso,
+        dateTo: defaultRange.toIso,
+        companyIds: [],
+        accountIds: [],
+        paymentModeId: null,
+        txnType: 'all',
+        search: ''
+    });
+
     const [isGenerating, setIsGenerating] = useState(false);
     const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'asc' });
     const [currentPage, setCurrentPage] = useState(1);
@@ -71,6 +82,153 @@ const ReportsPage = ({ activePage, userRole }) => {
     const [companyOptions, setCompanyOptions] = useState([]);
     const [accountOptions, setAccountOptions] = useState([]);
     const [paymentModeOptions, setPaymentModeOptions] = useState([]);
+
+    // Multi-Select Dropdowns State & Refs
+    const [isCompanyOpen, setIsCompanyOpen] = useState(false);
+    const [isAccountOpen, setIsAccountOpen] = useState(false);
+    const [companySearch, setCompanySearch] = useState('');
+    const [accountSearch, setAccountSearch] = useState('');
+
+    const companyDropdownRef = useRef(null);
+    const accountDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleOutside = (e) => {
+            if (companyDropdownRef.current && !companyDropdownRef.current.contains(e.target)) {
+                setIsCompanyOpen(false);
+            }
+            if (accountDropdownRef.current && !accountDropdownRef.current.contains(e.target)) {
+                setIsAccountOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, []);
+
+    // Filtered available accounts based on selected companies
+    const availableAccountOptions = useMemo(() => {
+        if (!filters.companyIds || filters.companyIds.length === 0 || filters.companyIds.includes(-1)) return accountOptions;
+        return accountOptions.filter(a => filters.companyIds.includes(Number(a.companyId)));
+    }, [accountOptions, filters.companyIds]);
+
+    // Clean up selected accounts when companies change
+    useEffect(() => {
+        if (!filters.companyIds || filters.companyIds.length === 0 || filters.companyIds.includes(-1)) return;
+        const validIds = new Set(availableAccountOptions.map(a => Number(a.id)));
+        setFilters(prev => {
+            const filtered = (prev.accountIds || []).filter(id => validIds.has(Number(id)));
+            if (filtered.length !== (prev.accountIds || []).length) {
+                return { ...prev, accountIds: filtered };
+            }
+            return prev;
+        });
+    }, [filters.companyIds, availableAccountOptions]);
+
+    // Company Checkbox Helpers
+    const allCompanyIds = useMemo(() => companyOptions.map(c => Number(c.id)), [companyOptions]);
+    const isAllCompaniesChecked = useMemo(() => {
+        if (companyOptions.length === 0) return false;
+        return filters.companyIds.length === 0 || allCompanyIds.every(id => filters.companyIds.includes(id));
+    }, [companyOptions.length, allCompanyIds, filters.companyIds]);
+
+    const toggleSelectAllCompanies = () => {
+        if (isAllCompaniesChecked) {
+            setFilters(prev => ({ ...prev, companyIds: [-1], accountIds: [] }));
+        } else {
+            setFilters(prev => ({ ...prev, companyIds: [], accountIds: [] }));
+        }
+    };
+
+    const toggleCompany = (compId) => {
+        const idNum = Number(compId);
+        setFilters(prev => {
+            let current = prev.companyIds.length === 0 ? [...allCompanyIds] : (prev.companyIds.includes(-1) ? [] : [...prev.companyIds]);
+            if (current.includes(idNum)) {
+                current = current.filter(id => id !== idNum);
+            } else {
+                current.push(idNum);
+            }
+            if (current.length === 0) current = [-1];
+            else if (current.length === companyOptions.length) current = [];
+            return { ...prev, companyIds: current };
+        });
+    };
+
+    const selectOnlyCompany = (compId, e) => {
+        e.stopPropagation();
+        setFilters(prev => ({ ...prev, companyIds: [Number(compId)] }));
+    };
+
+    // Account Checkbox Helpers
+    const availableAccountIds = useMemo(() => availableAccountOptions.map(a => Number(a.id)), [availableAccountOptions]);
+    const isAllAccountsChecked = useMemo(() => {
+        if (availableAccountIds.length === 0) return false;
+        return filters.accountIds.length === 0 || availableAccountIds.every(id => filters.accountIds.includes(id));
+    }, [availableAccountIds, filters.accountIds]);
+
+    const toggleSelectAllAccounts = () => {
+        if (isAllAccountsChecked) {
+            setFilters(prev => ({ ...prev, accountIds: [-1] }));
+        } else {
+            setFilters(prev => ({ ...prev, accountIds: [] }));
+        }
+    };
+
+    const toggleAccount = (accId) => {
+        const idNum = Number(accId);
+        setFilters(prev => {
+            let current = prev.accountIds.length === 0 ? [...availableAccountIds] : (prev.accountIds.includes(-1) ? [] : [...prev.accountIds]);
+            if (current.includes(idNum)) {
+                current = current.filter(id => id !== idNum);
+            } else {
+                current.push(idNum);
+            }
+            if (current.length === 0) current = [-1];
+            else if (current.length === availableAccountIds.length) current = [];
+            return { ...prev, accountIds: current };
+        });
+    };
+
+    const selectOnlyAccount = (accId, e) => {
+        e.stopPropagation();
+        setFilters(prev => ({ ...prev, accountIds: [Number(accId)] }));
+    };
+
+    // Display labels for trigger buttons
+    const companyButtonSummary = useMemo(() => {
+        if (companyOptions.length === 0) return 'Loading companies...';
+        if (isAllCompaniesChecked || filters.companyIds.length === 0) return 'All Companies';
+        if (filters.companyIds.includes(-1)) return '0 Companies Selected';
+        if (filters.companyIds.length === 1) {
+            const found = companyOptions.find(c => Number(c.id) === filters.companyIds[0]);
+            return found ? found.name : '1 Company Selected';
+        }
+        return `${filters.companyIds.length} Companies Selected`;
+    }, [companyOptions, isAllCompaniesChecked, filters.companyIds]);
+
+    const accountButtonSummary = useMemo(() => {
+        if (availableAccountIds.length === 0) return 'No Accounts Available';
+        if (isAllAccountsChecked || filters.accountIds.length === 0) return 'All Accounts';
+        if (filters.accountIds.includes(-1)) return '0 Accounts Selected';
+        if (filters.accountIds.length === 1) {
+            const found = accountOptions.find(a => Number(a.id) === filters.accountIds[0]);
+            return found ? found.name : '1 Account Selected';
+        }
+        return `${filters.accountIds.length} Accounts Selected`;
+    }, [availableAccountIds.length, isAllAccountsChecked, filters.accountIds, accountOptions]);
+
+    const displayedCompanies = useMemo(() => {
+        if (!companySearch.trim()) return companyOptions;
+        return companyOptions.filter(c => c.name?.toLowerCase().includes(companySearch.toLowerCase()));
+    }, [companyOptions, companySearch]);
+
+    const displayedAccounts = useMemo(() => {
+        if (!accountSearch.trim()) return availableAccountOptions;
+        return availableAccountOptions.filter(a => 
+            a.name?.toLowerCase().includes(accountSearch.toLowerCase()) ||
+            a.companyName?.toLowerCase().includes(accountSearch.toLowerCase())
+        );
+    }, [availableAccountOptions, accountSearch]);
 
     const [bankStatementRows, setBankStatementRows] = useState([]);
     const [bankStatementTotal, setBankStatementTotal] = useState(0);
@@ -115,7 +273,10 @@ const ReportsPage = ({ activePage, userRole }) => {
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
-    const getRangeLabel = () => `${formatDateForLabel(filters.dateFrom)} to ${formatDateForLabel(filters.dateTo)}`;
+    const getRangeLabel = (f = appliedFilters) => {
+        if (!f?.dateFrom && !f?.dateTo) return 'All Dates';
+        return `${formatDateForLabel(f.dateFrom)} to ${formatDateForLabel(f.dateTo)}`;
+    };
 
     const sanitizeText = (value) => {
         if (value === null || typeof value === 'undefined') return '-';
@@ -136,20 +297,45 @@ const ReportsPage = ({ activePage, userRole }) => {
 
     const getReportTitle = () => reportTypeMap[activePage] || 'Financial Report';
 
-    const getRequestBody = () => ({
-        dateFrom: filters.dateFrom || null,
-        dateTo: filters.dateTo || null,
-        companyIds: filters.companyIds,
-        accountIds: filters.accountIds,
-        paymentModeId: filters.paymentModeId,
-        txnType: filters.txnType,
-        search: filters.search
-    });
+    const getRequestBody = (active = filters) => {
+        const compIds = (active?.companyIds || []).includes(-1) ? [-999999] : (active?.companyIds || []);
+        const accIds = (active?.accountIds || []).includes(-1) ? [-999999] : (active?.accountIds || []);
+        return {
+            dateFrom: active?.dateFrom || null,
+            dateTo: active?.dateTo || null,
+            companyIds: compIds,
+            accountIds: accIds,
+            paymentModeId: active?.paymentModeId,
+            txnType: active?.txnType,
+            search: active?.search ? active.search.trim() : null
+        };
+    };
+
+    const getFilterSummaryRows = (active = appliedFilters) => {
+        const compText = (active?.companyIds || []).length === 0 ? 'All Companies' :
+            (active.companyIds.includes(-1) ? 'None' :
+            (active.companyIds.length === 1 ? (companyOptions.find(c => Number(c.id) === active.companyIds[0])?.name || '1 Company') : `${active.companyIds.length} Companies`));
+        
+        const accText = (active?.accountIds || []).length === 0 ? 'All Accounts' :
+            (active.accountIds.includes(-1) ? 'None' :
+            (active.accountIds.length === 1 ? (accountOptions.find(a => Number(a.id) === active.accountIds[0])?.name || '1 Account') : `${active.accountIds.length} Accounts`));
+
+        const modeText = active?.paymentModeId ? (paymentModeOptions.find(m => m.id === active.paymentModeId)?.name || String(active.paymentModeId)) : 'All Modes';
+
+        return [
+            ['Applied Date Range', getRangeLabel(active)],
+            ['Applied Company Filter', compText],
+            ['Applied Account Filter', accText],
+            ['Applied Payment Mode', modeText],
+            ['Applied Type Filter', active?.txnType !== 'all' ? active.txnType : 'All Types'],
+            ['Applied Search Keyword', active?.search ? active.search : 'None']
+        ];
+    };
 
     const getExportFilePrefix = () => {
-        const from = filters.dateFrom || 'start';
-        const to = filters.dateTo || 'end';
-        return `${activePage}-${from}-to-${to}`;
+        const from = appliedFilters?.dateFrom || 'all-dates';
+        const to = appliedFilters?.dateTo || 'all-dates';
+        return `${activePage}-${from}-to-${to}-filtered`;
     };
 
     const hasExportableData = useMemo(() => {
@@ -161,17 +347,21 @@ const ReportsPage = ({ activePage, userRole }) => {
     }, [activePage, bankStatementRows.length, companySummary, combinedRows.length, dateWiseReport]);
 
     const loadFullReportForExport = async () => {
-        const body = getRequestBody();
+        // STRICTLY use appliedFilters so export matches exactly the applied filter criteria
+        const body = getRequestBody(appliedFilters);
         const fetchAllPagedRows = async (endpoint, sortBy = 'date', sortDir = 'asc') => {
             const pageSize = 500;
-            const first = await apiService.post(`${endpoint}?page=0&size=${pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`, body);
-            const totalElements = Number(first?.totalElements || 0);
-            const totalPages = Math.max(Number(first?.totalPages || 0), totalElements > 0 ? Math.ceil(totalElements / pageSize) : 0);
-            const rows = [...(first?.content || [])];
+            const safeSort = (sortBy === 'debit' || sortBy === 'credit' || sortBy === 'balance') ? 'amount' : (sortBy || 'date');
+            const first = await apiService.post(`${endpoint}?page=0&size=${pageSize}&sortBy=${safeSort}&sortDir=${sortDir}`, body);
+            const totalElements = Number(first?.page?.totalElements ?? first?.totalElements ?? 0);
+            const totalPages = Math.max(Number(first?.page?.totalPages ?? first?.totalPages ?? 0), totalElements > 0 ? Math.ceil(totalElements / pageSize) : 0);
+            const firstRows = Array.isArray(first?.content) ? first.content : (Array.isArray(first) ? first : []);
+            const rows = [...firstRows];
             if (totalPages > 1) {
                 for (let page = 1; page < totalPages; page += 1) {
-                    const next = await apiService.post(`${endpoint}?page=${page}&size=${pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`, body);
-                    rows.push(...(next?.content || []));
+                    const next = await apiService.post(`${endpoint}?page=${page}&size=${pageSize}&sortBy=${safeSort}&sortDir=${sortDir}`, body);
+                    const nextRows = Array.isArray(next?.content) ? next.content : (Array.isArray(next) ? next : []);
+                    rows.push(...nextRows);
                 }
             }
             return { rows, firstPage: first };
@@ -206,19 +396,26 @@ const ReportsPage = ({ activePage, userRole }) => {
     };
 
     const buildExportPayload = (fullData) => {
+        const filterRows = getFilterSummaryRows(appliedFilters);
+
         if (activePage === 'bank-statement') {
             const rows = fullData.rows || [];
             const exportMeta = fullData.meta || bankStatementMeta || {};
+            const kpiCards = [
+                ['Report', getReportTitle()],
+                ['Opening Balance', exportMeta?.openingBalance == null ? '-' : formatCurrency(exportMeta.openingBalance)],
+                ['Current Balance', exportMeta?.currentBalance == null ? '-' : formatCurrency(exportMeta.currentBalance)],
+                ['Filtered Txns', String(rows.length)]
+            ];
             return {
+                cards: kpiCards,
                 summary: [
-                    ['Report', getReportTitle()],
-                    ['Date Range', getRangeLabel()],
-                    ['Opening Balance', exportMeta?.openingBalance == null ? '-' : formatCurrency(exportMeta.openingBalance)],
-                    ['Current Balance', exportMeta?.currentBalance == null ? '-' : formatCurrency(exportMeta.currentBalance)],
-                    ['Total Transactions', rows.length]
+                    ...kpiCards,
+                    ...filterRows
                 ],
-                columns: ['Date', 'ID', 'Description', 'From To', 'Type', 'Mode', 'Reference', 'Debit', 'Credit', 'Running Balance'],
-                rows: rows.map((txn) => ({
+                columns: ['Sr No.', 'Date', 'ID', 'Description', 'From To', 'Type', 'Mode', 'Reference', 'Debit', 'Credit', 'Running Balance'],
+                rows: rows.map((txn, idx) => ({
+                    'Sr No.': idx + 1,
                     Date: sanitizeText(txn.date),
                     ID: txn.id || '-',
                     Description: sanitizeText(txn.description),
@@ -238,13 +435,18 @@ const ReportsPage = ({ activePage, userRole }) => {
             const transactions = report?.recentTransactions || [];
             const totalCredit = Number(report?.totalCredit || 0);
             const totalDebit = Number(report?.totalDebit || 0);
+            const kpiCards = [
+                ['Report', getReportTitle()],
+                ['Total Credit', formatCurrency(totalCredit)],
+                ['Total Debit', formatCurrency(totalDebit)],
+                ['Net Position', formatCurrency(totalCredit - totalDebit)],
+                ['Filtered Txns', String(transactions.length)]
+            ];
             return {
+                cards: kpiCards,
                 summary: [
-                    ['Report', getReportTitle()],
-                    ['Date Range', getRangeLabel()],
-                    ['Total Credit', formatCurrency(totalCredit)],
-                    ['Total Debit', formatCurrency(totalDebit)],
-                    ['Net Position', formatCurrency(totalCredit - totalDebit)]
+                    ...kpiCards,
+                    ...filterRows
                 ],
                 columns: ['Date', 'Account', 'Description', 'From To', 'Type', 'Mode', 'Reference', 'Debit', 'Credit'],
                 rows: transactions.map((txn) => ({
@@ -266,11 +468,19 @@ const ReportsPage = ({ activePage, userRole }) => {
                 ...txn,
                 netEffect: txn.type === 'Moved' ? 0 : Number(txn.credit || 0) - Number(txn.debit || 0)
             }));
+            const totalCredit = rows.reduce((s, r) => s + Number(r.credit || 0), 0);
+            const totalDebit = rows.reduce((s, r) => s + Number(r.debit || 0), 0);
+            const kpiCards = [
+                ['Report', getReportTitle()],
+                ['Total Credit', formatCurrency(totalCredit)],
+                ['Total Debit', formatCurrency(totalDebit)],
+                ['Filtered Txns', String(rows.length)]
+            ];
             return {
+                cards: kpiCards,
                 summary: [
-                    ['Report', getReportTitle()],
-                    ['Date Range', getRangeLabel()],
-                    ['Total Transactions', rows.length]
+                    ...kpiCards,
+                    ...filterRows
                 ],
                 columns: ['Date', 'Company', 'Account', 'Description', 'From To', 'Type', 'Mode', 'Reference', 'Debit', 'Credit', 'Net Effect', 'Running Balance'],
                 rows: rows.map((txn) => ({
@@ -294,14 +504,18 @@ const ReportsPage = ({ activePage, userRole }) => {
         const totalCredit = Number(fullData.report?.totalCredit || 0);
         const totalDebit = Number(fullData.report?.totalDebit || 0);
         const netSavings = Number(fullData.report?.netSavings || 0);
+        const kpiCards = [
+            ['Report', getReportTitle()],
+            ['Total Credit', formatCurrency(totalCredit)],
+            ['Total Debit', formatCurrency(totalDebit)],
+            ['Net Savings', formatCurrency(netSavings)],
+            ['Filtered Periods', String(periods.length)]
+        ];
         return {
+            cards: kpiCards,
             summary: [
-                ['Report', getReportTitle()],
-                ['Date Range', getRangeLabel()],
-                ['Total Credit', formatCurrency(totalCredit)],
-                ['Total Debit', formatCurrency(totalDebit)],
-                ['Net Savings', formatCurrency(netSavings)],
-                ['Total Periods', periods.length]
+                ...kpiCards,
+                ...filterRows
             ],
             columns: ['Period', 'Month', 'Year', 'Transactions', 'Credit', 'Debit', 'Net Flow', 'Trend Percent'],
             rows: periods.map((p) => ({
@@ -321,20 +535,33 @@ const ReportsPage = ({ activePage, userRole }) => {
         try {
             const data = buildExportPayload(await loadFullReportForExport());
             if (!data.rows.length) {
-                Swal.fire('No data', 'No rows available for export.', 'info');
+                Swal.fire('No data', 'No rows available for export with applied filters.', 'info');
                 return;
             }
 
             const wb = XLSX.utils.book_new();
-            const summarySheet = XLSX.utils.aoa_to_sheet([['Metric', 'Value'], ...data.summary]);
+            const summarySheet = XLSX.utils.aoa_to_sheet([['Metric / Filter', 'Value'], ...data.summary]);
             const tableRows = data.rows.map((row) => {
                 const out = {};
                 data.columns.forEach((col) => { out[col] = row[col]; });
                 return out;
             });
             const tableSheet = XLSX.utils.json_to_sheet(tableRows, { header: data.columns });
-            XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
-            XLSX.utils.book_append_sheet(wb, tableSheet, 'Report Data');
+            
+            // Auto-size columns nicely so descriptions and numbers are not cut off
+            const colWidths = data.columns.map((col) => {
+                let maxLen = col.length;
+                tableRows.forEach((r) => {
+                    const val = r[col] != null ? String(r[col]) : '';
+                    if (val.length > maxLen) maxLen = Math.min(val.length, 60);
+                });
+                return { wch: Math.max(maxLen + 3, 10) };
+            });
+            tableSheet['!cols'] = colWidths;
+            summarySheet['!cols'] = [{ wch: 25 }, { wch: 35 }];
+
+            XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary & Filters');
+            XLSX.utils.book_append_sheet(wb, tableSheet, 'Filtered Report Data');
             XLSX.writeFile(wb, `${getExportFilePrefix()}.xlsx`);
         } catch (err) {
             Swal.fire('Export failed', err?.message || 'Unable to export Excel report', 'error');
@@ -345,7 +572,7 @@ const ReportsPage = ({ activePage, userRole }) => {
         try {
             const data = buildExportPayload(await loadFullReportForExport());
             if (!data.rows.length) {
-                Swal.fire('No data', 'No rows available for export.', 'info');
+                Swal.fire('No data', 'No rows available for export with applied filters.', 'info');
                 return;
             }
     
@@ -369,15 +596,25 @@ const ReportsPage = ({ activePage, userRole }) => {
             doc.setFontSize(16);
             doc.setTextColor(255, 255, 255);
             doc.setFont('helvetica', 'bold');
-            doc.text(sanitizePdfText(getReportTitle()), 80, 33);
+            doc.text(sanitizePdfText(getReportTitle()), 80, 32);
     
-            doc.setFontSize(8.5);
+            doc.setFontSize(8);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(148, 163, 184);
-            doc.text(`Period: ${sanitizePdfText(getRangeLabel())}`, 80, 48);
+            doc.text(`Period: ${sanitizePdfText(getRangeLabel(appliedFilters))}`, 80, 46);
+
+            const filterLine = getFilterSummaryRows(appliedFilters)
+                .slice(1)
+                .map(([k, v]) => `${k.replace('Applied ', '')}: ${v}`)
+                .join(' | ');
+            doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(165, 180, 252);
+            doc.text(`Filters: ${sanitizePdfText(filterLine)}`, 80, 59);
     
             // Right side: generated date + confidential
             doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'normal');
             doc.setTextColor(148, 163, 184);
             doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - 30, 30, { align: 'right' });
             doc.setFillColor(92, 103, 242);
@@ -388,13 +625,14 @@ const ReportsPage = ({ activePage, userRole }) => {
             doc.text('CONFIDENTIAL', pageW - 70, 51, { align: 'center' });
     
             // ── Summary cards ─────────────────────────────────────────────
+            const cardsToRender = data.cards || data.summary.slice(0, 5);
             let cardY = 90;
-            const cols = data.summary.length;
+            const cols = cardsToRender.length;
             const cardW = Math.min(150, (pageW - 60) / cols);
             const totalCardW = cols * cardW + (cols - 1) * 10;
             let cardX = (pageW - totalCardW) / 2;
     
-            data.summary.forEach(([label, value]) => {
+            cardsToRender.forEach(([label, value]) => {
                 doc.setFillColor(248, 250, 252);
                 doc.roundedRect(cardX, cardY, cardW, 44, 4, 4, 'F');
                 doc.setDrawColor(226, 232, 240);
@@ -677,23 +915,16 @@ const ReportsPage = ({ activePage, userRole }) => {
     }, []);
 
     const fetchBankStatement = async () => {
-        const requestBody = {
-            dateFrom: filters.dateFrom || null,
-            dateTo: filters.dateTo || null,
-            companyIds: filters.companyIds,
-            accountIds: filters.accountIds,
-            paymentModeId: filters.paymentModeId,
-            txnType: filters.txnType,
-            search: filters.search
-        };
+        const requestBody = getRequestBody();
 
+        const safeSortKey = (sortConfig.key === 'debit' || sortConfig.key === 'credit' || sortConfig.key === 'balance') ? 'amount' : (sortConfig.key || 'date');
         const res = await apiService.post(
-            `/reports/bank-statement/paged?page=${Math.max(currentPage - 1, 0)}&size=${itemsPerPage}&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}`,
+            `/reports/bank-statement/paged?page=${Math.max(currentPage - 1, 0)}&size=${itemsPerPage}&sortBy=${safeSortKey}&sortDir=${sortConfig.direction}`,
             requestBody
         );
 
         setBankStatementRows(res?.content || []);
-        setBankStatementTotal(res?.totalElements || 0);
+        setBankStatementTotal(res?.page?.totalElements ?? res?.totalElements ?? 0);
         setBankStatementMeta({
             openingBalance: res?.openingBalance ?? null,
             currentBalance: res?.currentBalance ?? null,
@@ -704,20 +935,22 @@ const ReportsPage = ({ activePage, userRole }) => {
     };
 
     const fetchCompanyReport = async () => {
+        const safeSortKey = (sortConfig.key === 'debit' || sortConfig.key === 'credit' || sortConfig.key === 'balance') ? 'amount' : (sortConfig.key || 'date');
         const res = await apiService.post(
-            `/reports/company-report/paged?page=${Math.max(currentPage - 1, 0)}&size=${itemsPerPage}&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}`,
+            `/reports/company-report/paged?page=${Math.max(currentPage - 1, 0)}&size=${itemsPerPage}&sortBy=${safeSortKey}&sortDir=${sortConfig.direction}`,
             getRequestBody()
         );
         setCompanySummary(res || null);
     };
 
     const fetchCombinedReport = async () => {
+        const safeSortKey = (sortConfig.key === 'debit' || sortConfig.key === 'credit' || sortConfig.key === 'balance') ? 'amount' : (sortConfig.key || 'date');
         const res = await apiService.post(
-            `/reports/combined-report/paged?page=${Math.max(currentPage - 1, 0)}&size=${itemsPerPage}&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}`,
+            `/reports/combined-report/paged?page=${Math.max(currentPage - 1, 0)}&size=${itemsPerPage}&sortBy=${safeSortKey}&sortDir=${sortConfig.direction}`,
             getRequestBody()
         );
         setCombinedRows(res?.content || []);
-        setCombinedTotal(res?.totalElements || 0);
+        setCombinedTotal(res?.page?.totalElements ?? res?.totalElements ?? 0);
     };
 
     const fetchDateWiseReport = async () => {
@@ -743,9 +976,9 @@ const ReportsPage = ({ activePage, userRole }) => {
                 totalDebit: Number(res?.totalDebit || 0),
                 netAmount: Number(res?.netAmount || 0),
                 content: res?.content || [],
-                totalElements: Number(res?.totalElements || 0),
-                page: Number(res?.page || 0),
-                size: Number(res?.size || size)
+                totalElements: Number(res?.page?.totalElements ?? res?.totalElements ?? 0),
+                page: Number(res?.page?.number ?? res?.page ?? 0),
+                size: Number(res?.page?.size ?? res?.size ?? size)
             });
         } catch (err) {
             Swal.fire('Error', err?.message || 'Failed to load period transactions', 'error');
@@ -756,6 +989,7 @@ const ReportsPage = ({ activePage, userRole }) => {
 
     const handleGenerate = async () => {
         setIsGenerating(true);
+        setAppliedFilters({ ...filters });
         try {
             if (activePage === 'bank-statement') {
                 await fetchBankStatement();
@@ -774,7 +1008,7 @@ const ReportsPage = ({ activePage, userRole }) => {
     };
 
     const resetFilters = () => {
-        setFilters({
+        const defaultFilters = {
             dateFrom: defaultRange.fromIso,
             dateTo: defaultRange.toIso,
             companyIds: [],
@@ -782,7 +1016,13 @@ const ReportsPage = ({ activePage, userRole }) => {
             paymentModeId: null,
             txnType: 'all',
             search: ''
-        });
+        };
+        setFilters(defaultFilters);
+        setAppliedFilters(defaultFilters);
+        setCompanySearch('');
+        setAccountSearch('');
+        setIsCompanyOpen(false);
+        setIsAccountOpen(false);
         setCurrentPage(1);
     };
 
@@ -861,63 +1101,233 @@ const ReportsPage = ({ activePage, userRole }) => {
                         </div>
                     </div>
 
-                    <div className="report-filter-item">
+                    {/* Company Multi-Select */}
+                    <div className="report-filter-item" ref={companyDropdownRef}>
                         <label className="report-filter-label">Company</label>
-                        <div className="custom-multiselect">
-                            <select 
-                                className="report-filter-input"
-                                onChange={(e) => {
-                                    if (e.target.value) toggleItem('companyIds', Number(e.target.value));
-                                    e.target.value = '';
+                        <div className="dash-multi-select">
+                            <div
+                                className={`dash-select-trigger ${isCompanyOpen ? 'active' : ''}`}
+                                onClick={() => {
+                                    setIsCompanyOpen(!isCompanyOpen);
+                                    setIsAccountOpen(false);
                                 }}
+                                title={companyButtonSummary}
                             >
-                                <option value="">Add Company...</option>
-                                {companyOptions.map(c => (
-                                    <option key={c.id} value={c.id} disabled={filters.companyIds.includes(c.id)}>{c.name}</option>
-                                ))}
-                            </select>
-                            <div className="selected-tags mt-2">
-                                {filters.companyIds.length === 0 ? (
-                                    <span className="tag-all">All Companies Selected</span>
-                                ) : (
-                                    filters.companyIds.map(id => (
-                                        <span key={id} className="filter-tag">
-                                            {(companyOptions.find(c => c.id === id)?.name) || id}{' '}
-                                            <i className="bi bi-x" onClick={() => removeTag('companyIds', id)}></i>
-                                        </span>
-                                    ))
-                                )}
+                                <div className="dash-select-summary">
+                                    <span className="text-truncate">{companyButtonSummary}</span>
+                                    {filters.companyIds.length > 1 && !isAllCompaniesChecked && !filters.companyIds.includes(-1) && (
+                                        <span className="dash-select-badge">{filters.companyIds.length}</span>
+                                    )}
+                                </div>
+                                <div className="dash-select-icons">
+                                    <i className={`bi bi-chevron-${isCompanyOpen ? 'up' : 'down'}`}></i>
+                                </div>
                             </div>
+
+                            {isCompanyOpen && (
+                                <div className="dash-select-menu">
+                                    {companyOptions.length > 5 && (
+                                        <div className="dash-select-search-box">
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm"
+                                                placeholder="Search company..."
+                                                value={companySearch}
+                                                onChange={(e) => setCompanySearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div
+                                        className="dash-select-header-option"
+                                        onClick={toggleSelectAllCompanies}
+                                    >
+                                        <div className="d-flex align-items-center">
+                                            <input
+                                                type="checkbox"
+                                                className="form-check-input"
+                                                checked={isAllCompaniesChecked}
+                                                onChange={toggleSelectAllCompanies}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <span>Select All Companies</span>
+                                        </div>
+                                        <span className="badge bg-light text-muted fw-normal">{companyOptions.length}</span>
+                                    </div>
+
+                                    <div className="dash-select-options-list">
+                                        {displayedCompanies.map(c => {
+                                            const isChecked = isAllCompaniesChecked || filters.companyIds.includes(Number(c.id));
+                                            return (
+                                                <div
+                                                    key={c.id}
+                                                    className={`dash-select-option ${isChecked ? 'selected' : ''}`}
+                                                    onClick={() => toggleCompany(c.id)}
+                                                >
+                                                    <div className="d-flex align-items-center overflow-hidden flex-grow-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="form-check-input"
+                                                            checked={isChecked}
+                                                            onChange={() => toggleCompany(c.id)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                        <div className="dash-option-label">
+                                                            <span className="dash-option-title text-truncate">{c.name}</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="dash-only-btn ms-2"
+                                                        title={`Select only ${c.name}`}
+                                                        onClick={(e) => selectOnlyCompany(c.id, e)}
+                                                    >
+                                                        Only
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {displayedCompanies.length === 0 && (
+                                            <div className="text-center py-3 text-muted small">No companies found</div>
+                                        )}
+                                    </div>
+
+                                    <div className="dash-select-footer">
+                                        <span>
+                                            {isAllCompaniesChecked
+                                                ? companyOptions.length
+                                                : (filters.companyIds.includes(-1) ? 0 : filters.companyIds.length)} of {companyOptions.length} selected
+                                        </span>
+                                        {!isAllCompaniesChecked && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setFilters(prev => ({ ...prev, companyIds: [] }))}
+                                            >
+                                                Select All
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <div className="report-filter-item">
+                    {/* Accounts Multi-Select */}
+                    <div className="report-filter-item" ref={accountDropdownRef}>
                         <label className="report-filter-label">Account / Bank</label>
-                        <div className="custom-multiselect">
-                            <select 
-                                className="report-filter-input"
-                                onChange={(e) => {
-                                    if (e.target.value) toggleItem('accountIds', Number(e.target.value));
-                                    e.target.value = '';
+                        <div className="dash-multi-select">
+                            <div
+                                className={`dash-select-trigger ${isAccountOpen ? 'active' : ''}`}
+                                onClick={() => {
+                                    setIsAccountOpen(!isAccountOpen);
+                                    setIsCompanyOpen(false);
                                 }}
+                                title={accountButtonSummary}
                             >
-                                <option value="">Add Account...</option>
-                                {accountOptions.map(a => (
-                                    <option key={a.id} value={a.id} disabled={filters.accountIds.includes(a.id)}>{a.name}</option>
-                                ))}
-                            </select>
-                            <div className="selected-tags mt-2">
-                                {filters.accountIds.length === 0 ? (
-                                    <span className="tag-all">All Accounts Selected</span>
-                                ) : (
-                                    filters.accountIds.map(id => (
-                                        <span key={id} className="filter-tag">
-                                            {(accountOptions.find(a => a.id === id)?.name) || id}{' '}
-                                            <i className="bi bi-x" onClick={() => removeTag('accountIds', id)}></i>
-                                        </span>
-                                    ))
-                                )}
+                                <div className="dash-select-summary">
+                                    <span className="text-truncate">{accountButtonSummary}</span>
+                                    {filters.accountIds.length > 1 && !isAllAccountsChecked && !filters.accountIds.includes(-1) && (
+                                        <span className="dash-select-badge">{filters.accountIds.length}</span>
+                                    )}
+                                </div>
+                                <div className="dash-select-icons">
+                                    <i className={`bi bi-chevron-${isAccountOpen ? 'up' : 'down'}`}></i>
+                                </div>
                             </div>
+
+                            {isAccountOpen && (
+                                <div className="dash-select-menu">
+                                    {availableAccountOptions.length > 5 && (
+                                        <div className="dash-select-search-box">
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm"
+                                                placeholder="Search account..."
+                                                value={accountSearch}
+                                                onChange={(e) => setAccountSearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div
+                                        className="dash-select-header-option"
+                                        onClick={toggleSelectAllAccounts}
+                                    >
+                                        <div className="d-flex align-items-center">
+                                            <input
+                                                type="checkbox"
+                                                className="form-check-input"
+                                                checked={isAllAccountsChecked}
+                                                onChange={toggleSelectAllAccounts}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <span>Select All Accounts</span>
+                                        </div>
+                                        <span className="badge bg-light text-muted fw-normal">{availableAccountOptions.length}</span>
+                                    </div>
+
+                                    <div className="dash-select-options-list">
+                                        {displayedAccounts.map(acc => {
+                                            const isChecked = isAllAccountsChecked || filters.accountIds.includes(Number(acc.id));
+                                            return (
+                                                <div
+                                                    key={acc.id}
+                                                    className={`dash-select-option ${isChecked ? 'selected' : ''}`}
+                                                    onClick={() => toggleAccount(acc.id)}
+                                                >
+                                                    <div className="d-flex align-items-center overflow-hidden flex-grow-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="form-check-input"
+                                                            checked={isChecked}
+                                                            onChange={() => toggleAccount(acc.id)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                        <div className="dash-option-label">
+                                                            <span className="dash-option-title text-truncate">
+                                                                <i className={`bi ${acc.type === 'Bank' ? 'bi-bank text-primary' : 'bi-wallet text-warning'} me-1`}></i>
+                                                                {acc.name}
+                                                            </span>
+                                                            {acc.companyName && (
+                                                                <span className="dash-option-subtitle text-truncate">{acc.companyName}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="dash-only-btn ms-2"
+                                                        title={`Select only ${acc.name}`}
+                                                        onClick={(e) => selectOnlyAccount(acc.id, e)}
+                                                    >
+                                                        Only
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {displayedAccounts.length === 0 && (
+                                            <div className="text-center py-3 text-muted small">No accounts found</div>
+                                        )}
+                                    </div>
+
+                                    <div className="dash-select-footer">
+                                        <span>
+                                            {isAllAccountsChecked
+                                                ? availableAccountOptions.length
+                                                : (filters.accountIds.includes(-1) ? 0 : filters.accountIds.length)} of {availableAccountOptions.length} selected
+                                        </span>
+                                        {!isAllAccountsChecked && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setFilters(prev => ({ ...prev, accountIds: [] }))}
+                                            >
+                                                Select All
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -1222,6 +1632,7 @@ const BankStatementView = ({ rows, totalItems, meta, fallbackSubtitle, filters, 
                     <table className="statement-table">
                         <thead>
                             <tr>
+                                <th style={{ width: '65px' }}>Sr No.</th>
                                 <th className="sortable-header" onClick={() => onSort('date')}>Date <i className={`bi bi-caret-${sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
                                 <th>ID</th>
                                 <th>Description</th>
@@ -1235,8 +1646,11 @@ const BankStatementView = ({ rows, totalItems, meta, fallbackSubtitle, filters, 
                             </tr>
                         </thead>
                         <tbody>
-                            {rows.map(txn => (
+                            {rows.map((txn, index) => (
                                 <tr key={txn.id} className="statement-row">
+                                    <td className="text-muted fw-semibold" style={{ width: '65px' }}>
+                                        {(currentPage - 1) * itemsPerPage + index + 1}
+                                    </td>
                                     <td>{txn.date}</td>
                                     <td><code className="small text-primary">{txn.id}</code></td>
                                     <td>{txn.description}</td>
@@ -1264,9 +1678,12 @@ const BankStatementView = ({ rows, totalItems, meta, fallbackSubtitle, filters, 
 
             {/* Mobile Cards */}
             <div className="report-mobile-cards">
-                {rows.map(txn => (
+                {rows.map((txn, index) => (
                     <div key={txn.id} className="report-txn-card">
                         <div className="rtcard-header">
+                            <span className="badge bg-secondary-subtle text-dark me-1" style={{ fontSize: '0.72rem' }}>
+                                #{(currentPage - 1) * itemsPerPage + index + 1}
+                            </span>
                             <span className="rtcard-id">{txn.id}</span>
                             <span className="rtcard-date">{txn.date}</span>
                             <span className={`badge rounded-pill ${txn.type === 'Received' ? 'bg-success-subtle text-success' : txn.type === 'Paid' ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'}`}>{txn.type}</span>
@@ -1388,6 +1805,7 @@ const CompanyReportView = ({ report, filters, sortConfig, onSort, currentPage, i
                 <table className="statement-table">
                     <thead>
                         <tr>
+                            <th style={{ width: '65px' }}>Sr No.</th>
                             <th className="sortable-header" onClick={() => onSort('date')}>Date <i className={`bi bi-caret-${sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? 'up' : 'down') : 'up'}`}></i></th>
                             <th>Account</th>
                             <th>Description</th>
@@ -1396,8 +1814,11 @@ const CompanyReportView = ({ report, filters, sortConfig, onSort, currentPage, i
                         </tr>
                     </thead>
                     <tbody>
-                        {recentTransactions.map(txn => (
+                        {recentTransactions.map((txn, index) => (
                             <tr key={txn.id}>
+                                <td className="text-muted fw-semibold" style={{ width: '65px' }}>
+                                    {(currentPage - 1) * itemsPerPage + index + 1}
+                                </td>
                                 <td>{txn.date}</td>
                                 <td>{txn.account}</td>
                                 <td>{txn.description}</td>
@@ -1412,9 +1833,12 @@ const CompanyReportView = ({ report, filters, sortConfig, onSort, currentPage, i
             </div>
             {/* Mobile Cards */}
             <div className="report-mobile-cards">
-                {recentTransactions.map(txn => (
+                {recentTransactions.map((txn, index) => (
                     <div key={txn.id} className="report-txn-card">
                         <div className="rtcard-header">
+                            <span className="badge bg-secondary-subtle text-dark me-1" style={{ fontSize: '0.72rem' }}>
+                                #{(currentPage - 1) * itemsPerPage + index + 1}
+                            </span>
                             <span className="rtcard-date">{txn.date}</span>
                             <span className="rtcard-value fw-semibold">{txn.account}</span>
                             <span className={`badge rounded-pill ${txn.credit > 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'}`}>{txn.type}</span>
@@ -1474,6 +1898,7 @@ const CombinedReportView = ({ transactions, totalItems, filters, currentPage, it
                 <table className="statement-table">
                     <thead>
                         <tr>
+                            <th style={{ width: '65px' }}>Sr No.</th>
                             <th>Date</th>
                             <th>Company</th>
                             <th>Account</th>
@@ -1486,8 +1911,11 @@ const CombinedReportView = ({ transactions, totalItems, filters, currentPage, it
                         </tr>
                     </thead>
                     <tbody>
-                        {tableData.map(txn => (
+                        {tableData.map((txn, index) => (
                             <tr key={txn.id}>
+                                <td className="text-muted fw-semibold" style={{ width: '65px' }}>
+                                    {(currentPage - 1) * itemsPerPage + index + 1}
+                                </td>
                                 <td>{txn.date}</td>
                                 <td className="fw-semibold">{txn.company}</td>
                                 <td>{txn.account}</td>
@@ -1509,9 +1937,12 @@ const CombinedReportView = ({ transactions, totalItems, filters, currentPage, it
 
             {/* Mobile Cards */}
             <div className="report-mobile-cards">
-                {tableData.map(txn => (
+                {tableData.map((txn, index) => (
                     <div key={txn.id} className="report-txn-card">
                         <div className="rtcard-header">
+                            <span className="badge bg-secondary-subtle text-dark me-1" style={{ fontSize: '0.72rem' }}>
+                                #{(currentPage - 1) * itemsPerPage + index + 1}
+                            </span>
                             <span className="rtcard-date">{txn.date}</span>
                             <span className="rtcard-id">{txn.company}</span>
                             <span className={`badge rounded-pill ${txn.type === 'Received' ? 'bg-success-subtle text-success' : txn.type === 'Paid' ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'}`}>{txn.type}</span>
